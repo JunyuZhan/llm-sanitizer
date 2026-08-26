@@ -13,3 +13,6 @@ build/
 
 # Local runtime data — never commit user privacy mappings
 *.log
+
+# Official website (deployed via Vercel CLI, kept local — not part of the repo)
+website/
