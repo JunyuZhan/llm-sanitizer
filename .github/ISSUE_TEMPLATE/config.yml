@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: FAQ / 常见问题
+    url: https://github.com/JunyuZhan/llm-sanitizer/blob/main/docs/faq.zh-CN.md
+    about: 常见疑问与限制,提交前请先查阅。Read this before opening an issue.
+  - name: Security / 安全漏洞
+    url: https://github.com/JunyuZhan/llm-sanitizer/blob/main/docs/SECURITY.md
+    about: 安全问题请走私有报告通道,不要开公开 issue。Do NOT file security issues publicly.

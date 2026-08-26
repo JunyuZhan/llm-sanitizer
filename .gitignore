@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# OS
+.DS_Store
+
+# WorkBuddy project data (local only, do not publish)
+.workbuddy/
+
+# Local runtime data — never commit user privacy mappings
+*.log
