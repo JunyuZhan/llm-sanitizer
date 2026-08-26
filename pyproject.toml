@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "llm-sanitizer"
+version = "0.1.0"
+description = "Local AI traffic privacy gateway — mask sensitive data before it leaves your machine"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+keywords = ["privacy", "llm", "masking", "gateway", "ai-agent", "sanitizer"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Topic :: Security",
+    "Topic :: Utilities",
+]
+dependencies = []
+
+[project.scripts]
+llm-sanitizer = "llm_sanitizer.cli:main"
+
+[tool.setuptools]
+packages = ["llm_sanitizer"]

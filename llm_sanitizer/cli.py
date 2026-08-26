@@ -87,6 +87,10 @@ def cmd_restore(args):
 
 def cmd_install(args):
     script = Path(__file__).resolve().parent.parent / "install.sh"
+    if not script.exists():
+        print("[llm-sanitizer] install.sh 不随 pip 包分发;请从源码仓库获取:")
+        print("  https://github.com/JunyuZhan/llm-sanitizer")
+        return
     subprocess.run(["bash", str(script)] + (["--uninstall"] if args.uninstall else []))
 
 
