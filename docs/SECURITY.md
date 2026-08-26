@@ -32,10 +32,12 @@
 
 ## 5. Known limitations (please read)
 
-- **R1 — Transport coverage.** Clients using WebSocket or other non-HTTP channels cannot be intercepted in v0.1. Before integrating, confirm your client uses HTTP/SSE (e.g. Codex CLI with `wire_api = "responses"` and WebSocket disabled).
-- **R2 — Recognition coverage.** Regex rules cannot catch every name, alias, or abbreviation. For high-sensitivity scenarios, add custom word lists (v0.2) or use a local/controlled environment.
-- **R3 — Masking ≠ anonymization.** Placeholders prevent plaintext leakage, but context ("defendant, male, 30, Shenzhen") can still re-identify individuals.
-- **R4 — Restore boundary.** Restore is exact-match only; placeholders rewritten by the model cannot be restored.
+> Numbering follows [PRD §9](../docs/需求文档.md#9-已知限制与风险实测发现如实记录); not re-numbered here.
+
+- **Transport coverage.** Clients using WebSocket or other non-HTTP channels cannot be intercepted in v0.1. Before integrating, confirm your client uses HTTP/SSE (e.g. Codex CLI with `wire_api = "responses"` and WebSocket disabled).
+- **Recognition coverage.** Regex rules cannot catch every name, alias, or abbreviation. For high-sensitivity scenarios, add custom word lists (v0.2) or use a local/controlled environment.
+- **Masking ≠ anonymization.** Placeholders prevent plaintext leakage, but context ("defendant, male, 30, Shenzhen") can still re-identify individuals.
+- **Restore boundary.** Restore is exact-match only; placeholders rewritten by the model cannot be restored.
 
 ## 6. Threat model
 
@@ -43,6 +45,7 @@
 |---|---|---|
 | Agent / user mistake leaks privacy outbound | ✅ mitigated | masked before leaving the machine |
 | Third-party SDK attaches extra data to requests | ✅ mitigated | only whitelisted header fields are forwarded; bodies are masked |
+| **Malicious web page in a browser sandbox (DNS rebinding / cross-site request)** | ✅ mitigated (v0.1 impl. req.) | gateway validates the `Host` header (loopback only), console rejects cross-origin `Origin`, write endpoints get a local token — prevents a rebinding page from reading restored plaintext via same-origin (FR-8) |
 | Malicious code inside the gateway itself | ⚠️ residual | mitigations: code audit, loopback-only binding, least privilege, version pinning |
 | Compromised local machine (malware) | ❌ not defended | user-space tools cannot defend against full local compromise |
 

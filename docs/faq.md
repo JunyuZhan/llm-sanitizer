@@ -19,13 +19,13 @@ Any provider exposing an OpenAI-compatible API (Responses or Chat Completions): 
 v0.1 only speaks HTTP/SSE. Some clients (especially desktop apps) use WebSocket for streaming. Intercepting WebSocket requires a separate proxy implementation, planned for v0.2. Before integrating, confirm your client uses HTTP/SSE.
 
 ### Will the model be confused by placeholders like `[姓名_1]`?
-Most models handle them fine, since placeholders are self-describing. In rare cases a model may quote or rewrite a placeholder — in that case it can't be restored (exact-match only, limit R4), and the placeholder simply stays in the response. It never leaks plaintext back upstream.
+Most models handle them fine, since placeholders are self-describing. In rare cases a model may quote or rewrite a placeholder — in that case it can't be restored (exact-match only), and the placeholder simply stays in the response. It never leaks plaintext back upstream.
 
 ### Could the model guess the plaintext from `[姓名_1]`?
-The placeholder format is guessable in principle, but the model never receives the plaintext — guessing it would require information the model simply doesn't have. However, context can leak: *"被告，男，30 岁，深圳"* narrows identity regardless of masking. That's the masking ≠ anonymization limit (R3).
+The placeholder format is guessable in principle, but the model never receives the plaintext — guessing it would require information the model simply doesn't have. However, context can leak: *"被告，男，30 岁，深圳"* narrows identity regardless of masking. That's the masking ≠ anonymization limit.
 
 ### How do I know masking actually covers my documents?
-Test it: send a message with deliberately inserted sample data, then check the dashboard. For real coverage, review the [rule list](../docs/需求文档.md) and plan custom word lists (v0.2) for names/aliases the regexes can't catch (R2).
+Test it: send a message with deliberately inserted sample data, then check the dashboard. For real coverage, review the [rule list](../docs/需求文档.md) and plan custom word lists (v0.2) for names/aliases the regexes can't catch.
 
 ### Can I choose which categories are masked?
 Yes (FR-15). Each built-in rule has a category id you can enable/disable in the console, via environment/config, or per-file with `mask --categories`. Presets: high-sensitivity (all on) / office (names, phones, email, company names, bank accounts, address) / custom. **Default is everything on.** Disabling a category means that kind of data goes to the cloud in plaintext — the UI warns you before you confirm, and the dashboard always shows "N/15 categories active".

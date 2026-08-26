@@ -19,7 +19,7 @@ pip install llm-sanitizer
 llm-sanitizer start
 ```
 
-**在此之前,请用源码方式运行:**
+**⚠️ 当前状态:源码方式尚不可运行**(`__main__.py`/`masker.py` 随 v0.1 落地),下面的命令是目标态参考,现在执行会报 `No module named llm_sanitizer.__main__`:
 
 ```bash
 git clone https://github.com/JunyuZhan/llm-sanitizer.git
@@ -27,7 +27,7 @@ cd llm-sanitizer
 python3 -m llm_sanitizer start
 ```
 
-> 还没有?核心模块正随 v0.1 落地——见[项目状态](../README.zh-CN.md#项目状态)与[模块与实现状态](../docs/开发文档.md#2-模块与实现状态)。
+> 核心模块正随 v0.1 落地,进度见[项目状态](../README.zh-CN.md#项目状态)与[模块与实现状态](../docs/开发文档.md#2-模块与实现状态)。
 
 ## 3. 配置
 
@@ -40,6 +40,7 @@ python3 -m llm_sanitizer start
 | `LLM_SANITIZER_PORT` | `8790` | 网关端口(仅监听 `127.0.0.1`) |
 | `LLM_SANITIZER_DASHBOARD_PORT` | `8791` | 看板端口 |
 | `LLM_SANITIZER_HOME` | `~/.llm-sanitizer` | 数据目录(`map.json`、`events.jsonl`、日志) |
+| `LLM_SANITIZER_CATEGORIES` | *(空 = 全量)* | 启用的脱敏类别,逗号分隔,如 `姓名,手机号,银行账号`(FR-15) |
 
 ```bash
 export LLM_SANITIZER_UPSTREAM="https://api.deepseek.com"
@@ -87,6 +88,7 @@ Codex / WorkBuddy / OpenClaw 的分步配置见 [Agent 接入指南](AGENTS.md)�
 | 现象 | 可能原因 / 处理 |
 |---|---|
 | `No module named llm_sanitizer` | 未在仓库根目录运行,或核心模块尚未合并(v0.1 进行中)——见项目状态 |
+| `No module named llm_sanitizer.__main__` / `masker` | **v0.1 代码尚未落地,当前源码不可运行**;请等待发布,或参与贡献(见[开发文档 §2](../docs/开发文档.md#2-模块与实现状态)) |
 | 看板没有事件 | Agent 实际没有走网关:检查 base_url;部分桌面 App 走 WebSocket 绕过 HTTP(已知限制 R1) |
 | `upstream unreachable` | `LLM_SANITIZER_UPSTREAM` 配错或网络不通 |
 | 上游返回 `401` | `LLM_SANITIZER_KEY` 缺失或错误;或 Agent 自带的密钥未被转发 |

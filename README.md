@@ -36,14 +36,14 @@ Agent ← [local gateway: restore] ← cloud
 
 ## Install
 
-> PyPI release is part of the v0.1 milestone. Currently, run from source.
+> ⚠️ **Source mode is not runnable yet**: `__main__.py` and `masker.py` have not landed; the source command below currently fails with `No module named llm_sanitizer.__main__` and is shown as the v0.1 target only. Runnable releases ship with the v0.1 code.
 
 ```bash
 # Preferred (once published):
 pip install llm-sanitizer
 llm-sanitizer start
 
-# Currently available: run from source
+# Source mode (target state, lands with v0.1):
 git clone https://github.com/JunyuZhan/llm-sanitizer.git
 cd llm-sanitizer
 python3 -m llm_sanitizer start
@@ -102,10 +102,12 @@ Full walkthrough, configuration reference, upgrade & uninstall: [Quick start](do
 
 ## Known limitations (be honest with yourself)
 
-- **Transport coverage (R1):** clients that use WebSocket or other non-HTTP channels are not intercepted in v0.1. Verify your client uses HTTP/SSE.
-- **Recognition coverage (R2):** regex rules cannot catch every name, alias, or abbreviation. High-sensitivity cases need custom word lists (v0.2) or local models.
-- **Masking ≠ anonymization (R3):** placeholders prevent plaintext leakage, but context ("defendant, male, 30, Shenzhen") can still re-identify individuals.
-- **Restore is exact-match only (R4):** if the model rewrites a placeholder, it cannot be restored.
+> Full numbered list in [PRD §9](docs/需求文档.md#9-已知限制与风险实测发现如实记录) (R1–R9); the most user-facing items are listed here without re-numbering.
+
+- **Transport coverage**: clients that use WebSocket or other non-HTTP channels are not intercepted in v0.1. Verify your client uses HTTP/SSE.
+- **Recognition coverage**: regex rules cannot catch every name, alias, or abbreviation. High-sensitivity cases need custom word lists (v0.2) or local models.
+- **Masking ≠ anonymization**: placeholders prevent plaintext leakage, but context ("defendant, male, 30, Shenzhen") can still re-identify individuals.
+- **Restore is exact-match only**: if the model rewrites a placeholder, it cannot be restored.
 
 Read [SECURITY.md](docs/SECURITY.md) before trusting this tool. **Core fact:** it is a man-in-the-middle gateway — it can read everything you send to the model. It runs only on your machine, listens only on `127.0.0.1`, is open-source and auditable, and stores mappings locally with `600` permissions. Trust it only after reading the code.
 
