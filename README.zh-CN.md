@@ -12,7 +12,7 @@
 
 ## 项目状态
 
-> **v0.1 已发布**:本地网关、15 类中文规则、实时看板/控制台、CLI、开机自启、测试套件(29 用例)与 CI 全部就绪;`pip install llmsanitize` 即可使用。v0.2 规划:WebSocket 代理、docx/xlsx/pdf 保留格式脱敏、自定义词表、一键接入。欢迎参与贡献。
+> **v0.1 已发布**:本地网关、15 类中文规则、实时看板/控制台、CLI、开机自启、测试套件(29 用例)与 CI 全部就绪;`pip install llm-sanitizer-gateway` 即可使用。v0.2 规划:WebSocket 代理、docx/xlsx/pdf 保留格式脱敏、自定义词表、一键接入。欢迎参与贡献。
 
 ## 它解决什么问题
 
@@ -40,7 +40,7 @@ Agent ← [本地网关:还原] ← 云端
 
 ```bash
 # 首选:
-pip install llmsanitize
+pip install llm-sanitizer-gateway
 llm-sanitizer start
 
 # 源码方式:

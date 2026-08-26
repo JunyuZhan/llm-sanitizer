@@ -15,7 +15,7 @@ Get from zero to "my agent is masked" in about five minutes.
 Two ways. **Once the PyPI package is published (part of v0.1), use pip:**
 
 ```bash
-pip install llmsanitize
+pip install llm-sanitizer-gateway
 llm-sanitizer start
 ```
 
@@ -97,7 +97,7 @@ For lawyers: you can pre-mask a file locally, then hand the masked version to an
 **Upgrade (pip install, recommended):**
 
 ```bash
-pip install --upgrade llmsanitize
+pip install --upgrade llm-sanitizer-gateway
 # if auto-start is installed, restart the service to pick up the new version:
 ./install.sh --uninstall && ./install.sh
 ```

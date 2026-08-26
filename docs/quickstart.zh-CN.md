@@ -15,7 +15,7 @@
 **两种方式。优先用 pip:**
 
 ```bash
-pip install llmsanitize
+pip install llm-sanitizer-gateway
 llm-sanitizer start
 ```
 
@@ -96,7 +96,7 @@ Codex / WorkBuddy / OpenClaw 的分步配置见 [Agent 接入指南](AGENTS.md)�
 **升级(pip 安装,推荐)**:
 
 ```bash
-pip install --upgrade llmsanitize
+pip install --upgrade llm-sanitizer-gateway
 # 若已安装开机自启,重启服务使新版本生效:
 ./install.sh --uninstall && ./install.sh
 ```

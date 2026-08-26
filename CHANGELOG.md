@@ -22,7 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `llm_sanitizer/__main__.py` — `python3 -m llm_sanitizer` entry point
 - `install.sh` — launchd / systemd auto-start installer with clean `--uninstall`
 - `tests/` — 29 cases (unit + CLI + e2e) covering AC-1…AC-9
-- `pyproject.toml` — PyPI packaging; published as `llmsanitize`, command stays `llm-sanitizer`
+- `pyproject.toml` — PyPI packaging; published as `llm-sanitizer-gateway`, command stays `llm-sanitizer`
 - CI (GitHub Actions: ubuntu+macos × py3.9/3.11/3.13)
 - Dashboard upgraded to console: onboarding guide, settings form, category presets,
   protected write API (Host/Origin validation + local token)

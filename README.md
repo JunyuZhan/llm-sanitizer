@@ -12,7 +12,7 @@
 
 ## Project Status
 
-> **v0.1 released.** Local gateway, 15 Chinese-sensitive-data categories, live dashboard/console, CLI, auto-start installer, test suite (29 cases) and CI are all in place — `pip install llmsanitize` to get started. v0.2 plans: WebSocket proxy, docx/xlsx/pdf format-preserving masking, custom word lists, one-click agent integration. Contributions welcome.
+> **v0.1 released.** Local gateway, 15 Chinese-sensitive-data categories, live dashboard/console, CLI, auto-start installer, test suite (29 cases) and CI are all in place — `pip install llm-sanitizer-gateway` to get started. v0.2 plans: WebSocket proxy, docx/xlsx/pdf format-preserving masking, custom word lists, one-click agent integration. Contributions welcome.
 
 ## Why
 
@@ -40,7 +40,7 @@ Agent ← [local gateway: restore] ← cloud
 
 ```bash
 # Preferred:
-pip install llmsanitize
+pip install llm-sanitizer-gateway
 llm-sanitizer start
 
 # Source mode:

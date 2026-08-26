@@ -64,7 +64,7 @@ CLI 脱敏(`mask`/`restore`)使用**独立**映射与计数器。CLI 产生的 `
 暂不支持。v0.2 计划支持(安装器 + 路径处理)。当前支持 macOS 与 Linux。
 
 ### 如何升级?
-`pip install --upgrade llmsanitize` 即可;装了开机自启的话再执行 `./install.sh --uninstall && ./install.sh` 重启服务。也可以直接运行 `llm-sanitizer upgrade` 查看最新版本与升级指引(`start` 启动时也会后台检查并提示)。升级不会丢失映射与统计——`map.json` 的 token 格式稳定,旧映射升级后仍可还原。
+`pip install --upgrade llm-sanitizer-gateway` 即可;装了开机自启的话再执行 `./install.sh --uninstall && ./install.sh` 重启服务。也可以直接运行 `llm-sanitizer upgrade` 查看最新版本与升级指引(`start` 启动时也会后台检查并提示)。升级不会丢失映射与统计——`map.json` 的 token 格式稳定,旧映射升级后仍可还原。
 
 ### 支持英文/日文文档吗?
 v0.1 仅中文规则。多语言规则(EN/JP)计划于 v0.3。

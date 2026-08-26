@@ -31,7 +31,7 @@ def check_update(current: str = __version__):
     """查询 PyPI 最新版本。失败静默返回 (current, False)。返回 (latest, has_new)。"""
     try:
         req = urllib.request.Request(
-            "https://pypi.org/pypi/llmsanitize/json",
+            "https://pypi.org/pypi/llm-sanitizer-gateway/json",
             headers={"User-Agent": f"llm-sanitizer/{current}"},
         )
         with urllib.request.urlopen(req, timeout=3) as r:
@@ -46,7 +46,7 @@ def _print_update_hint():
     latest, has_new = check_update()
     if has_new:
         print(f"[llm-sanitizer] 发现新版本 {latest}(当前 {__version__}):")
-        print("  pip install --upgrade llmsanitize   # 升级")
+        print("  pip install --upgrade llm-sanitizer-gateway   # 升级")
         print("  升级后重启自启: ./install.sh --uninstall && ./install.sh")
 
 
@@ -137,7 +137,7 @@ def cmd_upgrade(args):
     else:
         print(f"[llm-sanitizer] 当前已是最新版本({__version__})")
     print("[llm-sanitizer] 升级:")
-    print("  pip install --upgrade llmsanitize")
+    print("  pip install --upgrade llm-sanitizer-gateway")
     print("[llm-sanitizer] 升级后重启开机自启服务:")
     print("  ./install.sh --uninstall && ./install.sh")
     print("[llm-sanitizer] 说明:升级不丢失映射/统计(map.json 格式稳定,ADR-2)")

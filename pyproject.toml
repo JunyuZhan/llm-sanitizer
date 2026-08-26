@@ -3,7 +3,7 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "llmsanitize"
+name = "llm-sanitizer-gateway"
 version = "0.1.0"
 description = "Local AI traffic privacy gateway — mask sensitive data before it leaves your machine"
 readme = "README.md"
