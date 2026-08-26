@@ -10,9 +10,11 @@ from pathlib import Path
 
 if __package__ in (None, ""):
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from . import config, dashboard, gateway  # noqa: E402
-from .masker import mask_text, restore_text  # noqa: E402
+    from llm_sanitizer import config, dashboard, gateway  # noqa: E402
+    from llm_sanitizer.masker import mask_text, restore_text  # noqa: E402
+else:
+    from . import config, dashboard, gateway  # noqa: E402
+    from .masker import mask_text, restore_text  # noqa: E402
 
 
 def _check_port(port):
@@ -44,7 +46,7 @@ def cmd_start(args):
 
 
 def cmd_status(args):
-    from events import tail_events
+    from llm_sanitizer.events import tail_events  # D1 修复:包内绝对导入
 
     gw = _check_port(config.gateway_port())
     db = _check_port(config.dashboard_port())
@@ -65,9 +67,7 @@ def cmd_mask(args):
     dest = Path(args.output) if args.output else src.with_name("masked_" + src.name)
     dest.write_text(masked, encoding="utf-8")
     if args.map:
-        Path(args.map).write_text(
-            __import__("json").dumps(m.mapping, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
+        m.save(args.map)  # 原子写 + chmod 600(D7 修复)
     print(f"[ok] 已写入 {dest}")
     for cat, n in sorted(m.counters.items()):
         print(f"  {cat}: {n}")
