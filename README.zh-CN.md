@@ -1,5 +1,7 @@
 # LLM Sanitizer
 
+[![CI](https://github.com/JunyuZhan/llm-sanitizer/actions/workflows/ci.yml/badge.svg)](https://github.com/JunyuZhan/llm-sanitizer/actions/workflows/ci.yml)
+
 **本地 AI 流量隐私网关**。在 AI Agent(Codex、WorkBuddy、OpenClaw、Claude Code、Cline……)把数据发往云端大模型之前,自动把姓名、身份证号、手机号、地址、司法机关名称等敏感信息替换成 `[姓名_1]` 这类占位符;返回时精确还原,并用**实时看板**让你亲眼看到"什么被脱敏了"。
 
 > 目标用户:律师、法务、以及所有把本地文档交给 AI Agent 处理、又担心隐私泄漏的人。

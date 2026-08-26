@@ -283,8 +283,7 @@ def _iter_matches(rule, text: str):
 
 
 # 规则顺序即优先级(重叠时先声明者胜)
-RULES = [
-    (_find_id18, "身份证号"),
+RULES = [    (_find_id18, "身份证号"),
     (_find_id15, "身份证号"),
     (_find_uscc, "统一社会信用代码"),
     (_find_bank_accounts, "银行账号"),
@@ -302,6 +301,9 @@ RULES = [
     (_ADDRESS, "地址"),
     (_find_names, "姓名"),
 ]
+
+# 全部类别(按首次出现顺序去重),供类别开关/配置使用
+ALL_CATEGORIES = list(dict.fromkeys(cat for _, cat in RULES))
 
 
 # ---------------------------------------------------------------------------

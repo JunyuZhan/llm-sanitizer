@@ -46,6 +46,7 @@ def init_state(upstream=None, upstream_key=None, map_path=None, events_path=None
         str(map_path or config.map_path()),
         str(events_path or config.events_path()),
     )
+    st.masker = Masker(disabled_categories=config.disabled_categories())  # FR-15
     st.masker.load_mapping(_load_json(st.map_path))
     state = st  # 修复:必须赋给全局,否则请求处理时 state 为 None
     return st

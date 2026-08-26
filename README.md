@@ -1,5 +1,7 @@
 # LLM Sanitizer
 
+[![CI](https://github.com/JunyuZhan/llm-sanitizer/actions/workflows/ci.yml/badge.svg)](https://github.com/JunyuZhan/llm-sanitizer/actions/workflows/ci.yml)
+
 **A local privacy gateway for AI traffic.** Before your AI agent (Codex, WorkBuddy, OpenClaw, Claude Code, Cline…) sends local files to a cloud LLM, LLM Sanitizer automatically replaces sensitive information — names, ID numbers, phone numbers, addresses, court names — with placeholders like `[姓名_1]`; on the way back it restores them precisely, and a **live dashboard** shows you exactly what was masked.
 
 > Primary audience: lawyers, legal professionals, and anyone who hands local documents to an AI agent and worries about data leakage.

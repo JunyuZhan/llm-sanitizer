@@ -158,6 +158,65 @@ class TestResponsesJSON(GatewayFixture):
         self.assertNotIn("张三", raw)
 
 
+class TestConsole(GatewayFixture):
+    mock_mode = "chat_json"
+
+    def test_agents_endpoint(self):
+        """FR-11:引导检测接口返回 agents 列表(只读)。"""
+        status, body = _get(self.dport, "/api/agents")
+        self.assertEqual(status, 200)
+        data = json.loads(body)
+        self.assertIsInstance(data["agents"], list)
+        self.assertTrue(any(a["id"] == "codex" for a in data["agents"]))
+
+    def test_settings_get(self):
+        status, body = _get(self.dport, "/api/settings")
+        self.assertEqual(status, 200)
+        data = json.loads(body)
+        self.assertIn("upstream", data)
+        self.assertIn("key_set", data)
+
+    def test_settings_write_requires_token(self):
+        """FR-8:写接口无本地令牌返回 403。"""
+        conn = http.client.HTTPConnection("127.0.0.1", self.dport, timeout=10)
+        conn.request("POST", "/api/settings",
+                     body=b'{"upstream":"http://127.0.0.1:1"}',
+                     headers={"Content-Type": "application/json"})
+        resp = conn.getresponse()
+        body = resp.read()
+        conn.close()
+        self.assertEqual(resp.status, 403)
+
+    def test_settings_write_ok(self):
+        """写接口带令牌成功,配置落盘。"""
+        conn = http.client.HTTPConnection("127.0.0.1", self.dport, timeout=10)
+        conn.request("POST", "/api/settings",
+                     body=json.dumps({"upstream": "http://127.0.0.1:9", "categories": ["姓名"]}).encode(),
+                     headers={"Content-Type": "application/json", "X-Local-Token": "local"})
+        resp = conn.getresponse()
+        body = resp.read()
+        conn.close()
+        self.assertEqual(resp.status, 200)
+        self.assertTrue(json.loads(body)["ok"])
+        # 落盘且权限 600
+        import os
+        from llm_sanitizer import config as cfg
+        p = cfg.settings_path()
+        self.assertEqual(os.stat(p).st_mode & 0o777, 0o600)
+
+    def test_settings_write_cross_origin(self):
+        """FR-8:跨域 Origin 写接口返回 403。"""
+        conn = http.client.HTTPConnection("127.0.0.1", self.dport, timeout=10)
+        conn.request("POST", "/api/settings",
+                     body=b'{"upstream":"http://127.0.0.1:9"}',
+                     headers={"Content-Type": "application/json",
+                              "X-Local-Token": "local",
+                              "Origin": "http://evil.example.com"})
+        resp = conn.getresponse()
+        conn.close()
+        self.assertEqual(resp.status, 403)
+
+
 if __name__ == "__main__":
     import test_cli
     import test_masker
