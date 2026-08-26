@@ -31,6 +31,7 @@ HIT_CASES = [
     ("出生日期:1990年1月1日", "出生日期"),
     ("住址:广东省深圳市南山区科技园路1号", "地址"),
     ("原告张三 被告李四 法定代表人王五", "姓名"),
+    ("原告:张三 联系人：李四", "姓名"),   # 全角/半角冒号(P2-5 修复)
 ]
 
 # 误报样例:必须原文保留
@@ -74,6 +75,14 @@ class TestRules(unittest.TestCase):
     def test_restore_roundtrip(self):
         sample = "原告张三 电话13912345678 住址:北京市朝阳区建国路88号"
         masked, m = mask_text(sample)
+        restored = restore_text(masked, m.mapping)
+        self.assertEqual(restored, sample)
+
+    def test_id_x_case_roundtrip(self):
+        """小写 x 尾号身份证还原保真(P3)。"""
+        sample = "身份证 11010119900101123x"
+        masked, m = mask_text(sample)
+        self.assertNotIn("11010119900101123x", masked)
         restored = restore_text(masked, m.mapping)
         self.assertEqual(restored, sample)
 

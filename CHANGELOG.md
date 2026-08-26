@@ -5,26 +5,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.1.0] - 2026-08-27
 
-### Added (docs-first milestone)
+### Added
 
 - Complete documentation suite restructured for open-source consumption:
   - Bilingual README (`README.md` / `README.zh-CN.md`) with badges, status disclosure, and doc map
-  - New `docs/quickstart.md` (EN + zh-CN): install, configure, verify, upgrade, uninstall
-  - New `docs/faq.md` (EN + zh-CN): honest limitations, data handling, security Q&A
-  - New `docs/extending.md` (EN + zh-CN): four extension points and their contracts
+  - `docs/quickstart.md` (EN + zh-CN): install, configure, verify, upgrade, uninstall
+  - `docs/faq.md` (EN + zh-CN): honest limitations, data handling, security Q&A
+  - `docs/extending.md` (EN + zh-CN): four extension points and their contracts
   - `docs/SECURITY.md` (EN) + `docs/SECURITY.zh-CN.md`: threat model, vulnerability reporting
-  - `docs/需求文档.md` / `docs/开发文档.md`: acceptance criteria, status matrix, ADRs, known-defect register (D1–D6)
-- Community scaffolding: `CHANGELOG.md`, `CONTRIBUTING.md` (+ zh-CN), `CODE_OF_CONDUCT.md`,
-  issue templates and PR template with privacy data-flow requirement
-- Project status policy: docs-first development, core modules tracked in the status matrix
-
-### Planned for v0.1.0
-
-- `llm_sanitizer/masker.py` — Chinese-sensitive-data rule engine (the missing core)
+  - `docs/需求文档.md` / `docs/开发文档.md`: acceptance criteria, status matrix, ADRs, defect register
+- Community scaffolding: `CONTRIBUTING.md` (+ zh-CN), `CODE_OF_CONDUCT.md`, issue/PR templates
+- `llm_sanitizer/masker.py` — 15-category rule engine (checksum/Luhn validation, context rules,
+  category toggle, atomic 600-perm persistence)
 - `llm_sanitizer/__main__.py` — `python3 -m llm_sanitizer` entry point
-- `install.sh` — launchd / systemd installer (pip install becomes the primary path)
-- `tests/` — unit + e2e suite (`mock_upstream.py`, `test_e2e.py`) covering AC-1…AC-8
-- `pyproject.toml` — PyPI packaging; `pip install llmsanitize` + `llm-sanitizer start`
-- Fix known defects D1–D6 (see `docs/开发文档.md §9`)
+- `install.sh` — launchd / systemd auto-start installer with clean `--uninstall`
+- `tests/` — 29 cases (unit + CLI + e2e) covering AC-1…AC-9
+- `pyproject.toml` — PyPI packaging; published as `llmsanitize`, command stays `llm-sanitizer`
+- CI (GitHub Actions: ubuntu+macos × py3.9/3.11/3.13)
+- Dashboard upgraded to console: onboarding guide, settings form, category presets,
+  protected write API (Host/Origin validation + local token)
+- `llm-sanitizer upgrade` command + background update check (disable with
+  `LLM_SANITIZER_CHECK_UPDATE=0`)
+- `llm_sanitizer/config_manager.py` — agent detection (read-only, v0.1)
+
+### Fixed
+
+- All known defects D1–D8 (imports, restore fallback, tool-call arguments restore,
+  map.json write lock, dashboard live dot, connection leak, 600 perms, global state)
+- Second-round review: request-side list/tool-arguments masking gaps, Python 3.9
+  annotation compatibility, 644 permission window, restore race snapshot,
+  colon-separated names, launchd ProgramArguments, dashboard XSS escaping,
+  ID `x` case round-trip, dashboard Host validation, events tail read,
+  SSE `content_part.delta` compatibility, query-string stripped from events
+
+### Security
+
+- Gateway and dashboard validate `Host` header (loopback only) and reject
+  cross-origin `Origin` (DNS-rebinding mitigation); write endpoints require a
+  local token
+- All sensitive files (`map.json`, `settings.json`, `events.jsonl`, CLI `--map`)
+  persist atomically with `chmod 600`

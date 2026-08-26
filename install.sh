@@ -58,6 +58,11 @@ install() {
       PLIST_DIR="$HOME/Library/LaunchAgents"
       PLIST="$PLIST_DIR/com.llmsanitizer.gateway.plist"
       mkdir -p "$PLIST_DIR"
+      # launchd 不按空格分词:ProgramArguments 必须拆成单词数组
+      ARGS=""
+      for part in $CMD start; do
+        ARGS="$ARGS    <string>$part</string>\n"
+      done
       cat > "$PLIST" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -66,9 +71,7 @@ install() {
   <key>Label</key><string>com.llmsanitizer.gateway</string>
   <key>ProgramArguments</key>
   <array>
-    <string>$CMD</string>
-    <string>start</string>
-  </array>
+${ARGS}  </array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
   <key>EnvironmentVariables</key>

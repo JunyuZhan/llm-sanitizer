@@ -66,19 +66,32 @@ class EventStore:
 
 
 def tail_events(path, limit=300):
-    """从事件文件读取最近 N 条（供看板进程独立读取，不依赖网关内存）。"""
+    """从事件文件尾部倒读最近 N 条(不读全文件,文件增长不影响性能)。
+    供看板进程独立读取,不依赖网关内存。"""
     out = []
     if not path or not os.path.exists(path):
         return out
     try:
-        with open(path, encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if line:
-                    try:
-                        out.append(json.loads(line))
-                    except Exception:
-                        pass
-        return out[-limit:]
+        size = os.path.getsize(path)
+        if size == 0:
+            return out
+        block = 8192
+        read_from = max(0, size - block)
+        data = b""
+        with open(path, "rb") as f:
+            while True:
+                f.seek(read_from)
+                data = f.read()
+                if read_from == 0 or data.count(b"\n") >= limit + 2:
+                    break
+                read_from = max(0, read_from - block)
+        text = data.decode("utf-8", "replace")
+        lines = [ln for ln in text.splitlines() if ln.strip()]
+        for line in lines[-limit:]:
+            try:
+                out.append(json.loads(line))
+            except Exception:
+                pass
+        return out
     except Exception:
         return out

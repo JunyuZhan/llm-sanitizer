@@ -70,7 +70,9 @@ def cmd_start(args):
     print(f"[llm-sanitizer] 看板  http://127.0.0.1:{config.dashboard_port()}")
     print(f"[llm-sanitizer] 上游  {config.upstream()}")
     print("[llm-sanitizer] Ctrl+C 退出")
-    threading.Thread(target=_print_update_hint, daemon=True).start()  # 后台检查更新
+    if os.environ.get("LLM_SANITIZER_CHECK_UPDATE", "1") != "0":
+        # 后台检查更新;隐私敏感可 LLM_SANITIZER_CHECK_UPDATE=0 关闭
+        threading.Thread(target=_print_update_hint, daemon=True).start()
     try:
         threading.Event().wait()
     except KeyboardInterrupt:

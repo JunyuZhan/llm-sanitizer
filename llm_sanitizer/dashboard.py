@@ -26,6 +26,12 @@ def _origin_ok(headers) -> bool:
     return host in ALLOWED_ORIGIN_HOSTS
 
 
+def _host_ok(headers) -> bool:
+    """校验 Host 头(仅回环),与网关一致,防 DNS rebinding。"""
+    host = (headers.get("Host") or "").split(":")[0].lower()
+    return host in ALLOWED_ORIGIN_HOSTS
+
+
 PAGE = """<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -141,6 +147,7 @@ model_provider = "llm-sanitizer"</pre>
 <script>
 const ALL_CATS = ["姓名","身份证号","手机号","座机号","邮箱","统一社会信用代码","公司名称","司法机关","地址","出生日期","银行账号","案号","车牌号","证件号","密钥令牌"];
 const OFFICE = ["姓名","手机号","邮箱","公司名称","银行账号","地址"];
+function esc(s) { return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 function refresh() {
   fetch('/api/status').then(r=>r.json()).then(d=>{
@@ -155,11 +162,11 @@ function refresh() {
       '<div style="margin-bottom:8px;font-size:13px">' + k + ' <span style="float:right">' + v + '</span>' +
       '<div class="bar"><i style="width:' + (v/max*100) + '%"></i></div></div>').join('');
     document.getElementById('tbody_events').innerHTML = d.events.map(e =>
-      '<tr><td>' + e.ts + '</td><td><span class="tag">' + e.category + '</span></td>' +
-      '<td class="mono">' + e.token + '</td><td>' + (e.path || '') + '</td></tr>').join('');
+      '<tr><td>' + esc(e.ts) + '</td><td><span class="tag">' + esc(e.category) + '</span></td>' +
+      '<td class="mono">' + esc(e.token) + '</td><td>' + esc(e.path || '') + '</td></tr>').join('');
     document.getElementById('tbody_reqs').innerHTML = d.reqs.map(e =>
-      '<tr><td>' + e.ts + '</td><td>' + e.method + '</td><td class="mono">' + e.path + '</td>' +
-      '<td>' + e.new_findings + '</td></tr>').join('');
+      '<tr><td>' + esc(e.ts) + '</td><td>' + esc(e.method) + '</td><td class="mono">' + esc(e.path) + '</td>' +
+      '<td>' + esc(e.new_findings) + '</td></tr>').join('');
   }).catch(()=>{
     document.getElementById('live').className = 'off';
     document.getElementById('live').textContent = '看板服务异常';
@@ -228,6 +235,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
         pass
 
     def do_GET(self):
+        if not _host_ok(self.headers):
+            self._json(403, {"error": "forbidden host"})
+            return
         if not _origin_ok(self.headers):
             self._json(403, {"error": "forbidden origin"})
             return
@@ -268,6 +278,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self._send(404, b"not found", "text/plain")
 
     def do_POST(self):
+        if not _host_ok(self.headers):
+            self._json(403, {"error": "forbidden host"})
+            return
         if not _origin_ok(self.headers):
             self._json(403, {"error": "forbidden origin"})
             return

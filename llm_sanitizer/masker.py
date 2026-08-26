@@ -7,6 +7,8 @@
 - 纯标准库,零第三方依赖(ADR-1)
 """
 
+from __future__ import annotations  # Python 3.9 兼容(PEP 604 联合注解延迟求值)
+
 import json
 import os
 import re
@@ -104,12 +106,12 @@ _ORG = re.compile(
     r"(人民法院|人民检察院|检察院|公安局|公安分局|派出所|仲裁委员会|仲裁委|司法局|"
     r"律师事务所|律所|监狱|看守所)"
 )
-# 姓名:角色上下文 + 姓氏库 + 停用词(函数规则,见 _find_names)
+# 姓名:角色上下文 + 可选冒号/空白 + 姓氏库 + 停用词(函数规则,见 _find_names)
 _NAME_CTX = re.compile(
     r"(原告|被告|法定代表人|委托诉讼代理人|委托代理人|诉讼代理人|审判长|审判员|书记员|"
     r"申请人|被申请人|上诉人|被上诉人|申诉人|被申诉人|第三人|甲方|乙方|丙方|丁方|"
     r"联系人|经办人|代理人|负责人)"
-    r"([\u4e00-\u9fa5]{2,4})"
+    r"(?:[:：\s]*)([\u4e00-\u9fa5]{2,4})"
 )
 
 
@@ -208,9 +210,7 @@ def _find_bank_accounts(text: str):
 
 def _find_id18(text: str):
     for m in _ID18.finditer(text):
-        s = m.group(0)
-        if s[-1] in "xX":
-            s = s[:-1] + s[-1].upper()
+        s = m.group(0)  # 保留原文大小写(还原保真,P3)
         if _is_valid_id18(s):
             yield (m.start(), m.end(), s)
 

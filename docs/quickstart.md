@@ -19,15 +19,13 @@ pip install llmsanitize
 llm-sanitizer start
 ```
 
-**⚠️ Current status: source mode is not runnable yet** (`__main__.py`/`masker.py` land with v0.1). The command below is the target state — it currently fails with `No module named llm_sanitizer.__main__`:
+**Source mode:**
 
 ```bash
 git clone https://github.com/JunyuZhan/llm-sanitizer.git
 cd llm-sanitizer
 python3 -m llm_sanitizer start
 ```
-
-> Core modules are landing with v0.1 — see [project status](../README.md#project-status) and the [status matrix](../docs/开发文档.md#2-模块与实现状态).
 
 ## 3. Configure
 
@@ -87,8 +85,8 @@ For lawyers: you can pre-mask a file locally, then hand the masked version to an
 
 | Symptom | Likely cause / fix |
 |---|---|
-| `No module named llm_sanitizer` | Not running from the repo root, or core modules not yet merged (v0.1 WIP) — see project status |
-| `No module named llm_sanitizer.__main__` / `masker` | **v0.1 code has not landed; source mode is not runnable yet** — wait for the release or contribute (see [status matrix](../docs/开发文档.md#2-模块与实现状态)) |
+| `No module named llm_sanitizer` | Not running from the repo root or missing `PYTHONPATH` — use pip install or run from the repo root |
+| Dashboard shows no events | Agent is not actually routing through the gateway. Check the agent's base URL; some desktop apps use WebSocket and bypass HTTP (see [SECURITY](SECURITY.md)) |
 | Dashboard shows no events | Agent is not actually routing through the gateway. Check the agent's base URL; some desktop apps use WebSocket and bypass HTTP (known limit R1) |
 | `upstream unreachable` | Wrong `LLM_SANITIZER_UPSTREAM` or network blocked |
 | `401` from upstream | `LLM_SANITIZER_KEY` missing or invalid; or the agent's own key isn't being forwarded |

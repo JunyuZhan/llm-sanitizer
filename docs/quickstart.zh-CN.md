@@ -12,22 +12,20 @@
 
 ## 2. 安装
 
-两种方式。**PyPI 包发布后(属于 v0.1 里程碑),优先用 pip:**
+**两种方式。优先用 pip:**
 
 ```bash
 pip install llmsanitize
 llm-sanitizer start
 ```
 
-**⚠️ 当前状态:源码方式尚不可运行**(`__main__.py`/`masker.py` 随 v0.1 落地),下面的命令是目标态参考,现在执行会报 `No module named llm_sanitizer.__main__`:
+**源码方式:**
 
 ```bash
 git clone https://github.com/JunyuZhan/llm-sanitizer.git
 cd llm-sanitizer
 python3 -m llm_sanitizer start
 ```
-
-> 核心模块正随 v0.1 落地,进度见[项目状态](../README.zh-CN.md#项目状态)与[模块与实现状态](../docs/开发文档.md#2-模块与实现状态)。
 
 ## 3. 配置
 
@@ -87,9 +85,8 @@ Codex / WorkBuddy / OpenClaw 的分步配置见 [Agent 接入指南](AGENTS.md)�
 
 | 现象 | 可能原因 / 处理 |
 |---|---|
-| `No module named llm_sanitizer` | 未在仓库根目录运行,或核心模块尚未合并(v0.1 进行中)——见项目状态 |
-| `No module named llm_sanitizer.__main__` / `masker` | **v0.1 代码尚未落地,当前源码不可运行**;请等待发布,或参与贡献(见[开发文档 §2](../docs/开发文档.md#2-模块与实现状态)) |
-| 看板没有事件 | Agent 实际没有走网关:检查 base_url;部分桌面 App 走 WebSocket 绕过 HTTP(已知限制 R1) |
+| `No module named llm_sanitizer` | 未在仓库根目录运行,或环境变量 `PYTHONPATH` 缺失——用 pip 安装或从仓库根运行 |
+| 看板没有事件 | Agent 实际没有走网关:检查 base_url;部分桌面 App 走 WebSocket 绕过 HTTP(已知限制,见 [SECURITY](SECURITY.zh-CN.md)) |
 | `upstream unreachable` | `LLM_SANITIZER_UPSTREAM` 配错或网络不通 |
 | 上游返回 `401` | `LLM_SANITIZER_KEY` 缺失或错误;或 Agent 自带的密钥未被转发 |
 | 响应里残留 `[地址_1]` 这类占位符 | 工具调用参数还原是 v0.1 已知缺口(见[开发文档](../docs/开发文档.md)) |

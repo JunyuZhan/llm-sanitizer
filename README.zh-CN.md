@@ -12,7 +12,7 @@
 
 ## 项目状态
 
-> ⚠️ **文档先行开发中。** 本仓库当前交付了完整的文档体系和外围骨架(`config`、`events`、`gateway`、`dashboard`、`cli`),核心规则引擎(`masker.py`)、程序入口(`__main__.py`)、安装脚本与测试套件**正在补齐**——详见[模块与实现状态](docs/开发文档.md#2-模块与实现状态)。文档描述的是目标系统;上述模块落地后,快速开始命令即完全可用。欢迎参与贡献。
+> **v0.1 已发布**:本地网关、15 类中文规则、实时看板/控制台、CLI、开机自启、测试套件(29 用例)与 CI 全部就绪;`pip install llmsanitize` 即可使用。v0.2 规划:WebSocket 代理、docx/xlsx/pdf 保留格式脱敏、自定义词表、一键接入。欢迎参与贡献。
 
 ## 它解决什么问题
 
@@ -38,14 +38,12 @@ Agent ← [本地网关:还原] ← 云端
 
 ## 安装
 
-> ⚠️ **当前源码尚不可运行**:`__main__.py` 与 `masker.py` 尚未落地,下面的源码命令当前会报 `No module named llm_sanitizer.__main__`,仅作为 v0.1 目标态参考。可运行版本随 v0.1 代码落地发布。
-
 ```bash
-# 首选(发布后):
+# 首选:
 pip install llmsanitize
 llm-sanitizer start
 
-# 源码方式(目标态,随 v0.1 落地):
+# 源码方式:
 git clone https://github.com/JunyuZhan/llm-sanitizer.git
 cd llm-sanitizer
 python3 -m llm_sanitizer start

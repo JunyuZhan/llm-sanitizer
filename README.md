@@ -12,7 +12,7 @@
 
 ## Project Status
 
-> ⚠️ **Docs-first development.** This repository currently ships a complete documentation suite and the surrounding scaffold (`config`, `events`, `gateway`, `dashboard`, `cli`). The core rule engine (`masker.py`), entry point (`__main__.py`), installer script, and test suite are **in progress** — see the [status matrix](docs/开发文档.md#2-模块与实现状态). The docs describe the target system; the quick-start commands below become fully functional once those modules land. Contributions welcome.
+> **v0.1 released.** Local gateway, 15 Chinese-sensitive-data categories, live dashboard/console, CLI, auto-start installer, test suite (29 cases) and CI are all in place — `pip install llmsanitize` to get started. v0.2 plans: WebSocket proxy, docx/xlsx/pdf format-preserving masking, custom word lists, one-click agent integration. Contributions welcome.
 
 ## Why
 
@@ -38,14 +38,12 @@ Agent ← [local gateway: restore] ← cloud
 
 ## Install
 
-> ⚠️ **Source mode is not runnable yet**: `__main__.py` and `masker.py` have not landed; the source command below currently fails with `No module named llm_sanitizer.__main__` and is shown as the v0.1 target only. Runnable releases ship with the v0.1 code.
-
 ```bash
-# Preferred (once published):
+# Preferred:
 pip install llmsanitize
 llm-sanitizer start
 
-# Source mode (target state, lands with v0.1):
+# Source mode:
 git clone https://github.com/JunyuZhan/llm-sanitizer.git
 cd llm-sanitizer
 python3 -m llm_sanitizer start

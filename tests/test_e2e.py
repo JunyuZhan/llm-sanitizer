@@ -80,11 +80,15 @@ class GatewayFixture(unittest.TestCase):
 class TestChatJSON(GatewayFixture):
     mock_mode = "chat_json"
 
+    def last_raw(self):
+        """最近一次 mock 收到的请求体(避免跨用例累积污染)。"""
+        return self.mock.received[-1].decode("utf-8", "replace") if self.mock.received else ""
+
     def test_upstream_sees_placeholders_only(self):
         """AC-1:上游收到的内容不包含原文,只包含占位符。"""
         status, _ = _post(self.gport, "/v1/chat/completions", self._chat_payload())
         self.assertEqual(status, 200)
-        raw = self.mock.bodies_text()
+        raw = self.last_raw()
         self.assertNotIn("张三", raw)
         self.assertNotIn("13912345678", raw)
         self.assertIn("[姓名_1]", raw)
@@ -110,6 +114,39 @@ class TestChatJSON(GatewayFixture):
         ev = json.dumps(data, ensure_ascii=False)
         self.assertIn("[姓名_1]", ev)
         self.assertNotIn("张三", ev)
+
+    def test_list_content_masked(self):
+        """P1:敏感键下的字符串数组元素必须脱敏(content: ["原告张三"])。"""
+        payload = {"model": "gpt-4o", "messages": [{"role": "user", "content": ["原告张三 13912345678"]}]}
+        status, _ = _post(self.gport, "/v1/chat/completions", payload)
+        self.assertEqual(status, 200)
+        raw = self.last_raw()
+        self.assertNotIn("13912345678", raw)
+        self.assertIn("[手机号_1]", raw)
+
+    def test_tool_arguments_masked(self):
+        """P1:多轮工具调用,请求侧 arguments 必须脱敏(响应侧已还原会明文回传)。"""
+        payload = {
+            "model": "gpt-4o",
+            "messages": [{"role": "user", "content": "打电话"}],
+            "tools": [{"type": "function", "function": {"name": "call", "parameters": {}}}],
+        }
+        # 模拟客户端回传上一轮的 arguments(还原后的明文)
+        payload["messages"].append({
+            "role": "assistant",
+            "tool_calls": [{"type": "function", "id": "1",
+                            "function": {"name": "call",
+                                         "arguments": '{"to": "张三", "phone": "13912345678"}'}}],
+        })
+        payload["messages"].append({
+            "role": "tool", "tool_call_id": "1",
+            "content": "{\"to\": \"张三\", \"phone\": \"13912345678\"}",
+        })
+        status, _ = _post(self.gport, "/v1/chat/completions", payload)
+        self.assertEqual(status, 200)
+        raw = self.last_raw()
+        self.assertNotIn("13912345678", raw)
+        self.assertIn("[手机号_1]", raw)
 
     def test_host_validation(self):
         """FR-8:伪造 Host 头返回 403(DNS rebinding 缓解)。"""
@@ -212,6 +249,14 @@ class TestConsole(GatewayFixture):
                      headers={"Content-Type": "application/json",
                               "X-Local-Token": "local",
                               "Origin": "http://evil.example.com"})
+        resp = conn.getresponse()
+        conn.close()
+        self.assertEqual(resp.status, 403)
+
+    def test_dashboard_host_validation(self):
+        """P3:看板同样校验 Host 头(与网关一致)。"""
+        conn = http.client.HTTPConnection("127.0.0.1", self.dport, timeout=10)
+        conn.request("GET", "/api/status", headers={"Host": "evil.example.com"})
         resp = conn.getresponse()
         conn.close()
         self.assertEqual(resp.status, 403)

@@ -6,6 +6,7 @@
 import json
 import os
 import sys
+import tempfile
 import threading
 import time
 from http.client import HTTPConnection, HTTPSConnection
@@ -16,8 +17,8 @@ from . import config
 from .events import EventStore
 from .masker import Masker, mask_text, restore_text
 
-# 请求侧：这些字段里的文本会被脱敏
-MASK_KEYS = {"content", "text", "input", "instructions", "prompt", "system", "description"}
+# 请求侧:这些字段里的文本会被脱敏(含 arguments:工具调用参数 JSON 字符串)
+MASK_KEYS = {"content", "text", "input", "instructions", "prompt", "system", "description", "arguments"}
 # 响应侧：这些字段里的文本会被还原（delta 字段单独走流式缓冲）
 RESTORE_KEYS = {"content", "text", "summary"}
 SSE = "text/event-stream"
@@ -61,14 +62,21 @@ def _load_json(path):
 
 
 def _save_json(path, data):
-    tmp = str(path) + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-    os.replace(tmp, path)
+    """原子写 + chmod 600:mkstemp 先 chmod 再 replace,避免 644 权限窗口。"""
+    path = str(path)
+    tmp_dir = os.path.dirname(path) or "."
+    fd, tmp = tempfile.mkstemp(dir=tmp_dir, prefix=".map-")
     try:
-        os.chmod(path, 0o600)
-    except Exception:
-        pass
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
 
 
 def token_category(token):
@@ -81,38 +89,99 @@ def token_category(token):
 # ---------------------------------------------------------------------------
 # 请求脱敏 / 响应还原
 # ---------------------------------------------------------------------------
-def mask_json(obj, keys):
+def mask_json(obj, keys, in_sensitive=False):
+    """递归脱敏。in_sensitive:当前处于可脱敏键之下——列表中的字符串元素
+    也需脱敏(如 content: ["原告张三"]、input: [...] 的合法形态)。"""
     if isinstance(obj, dict):
         out = {}
         for k, v in obj.items():
             if isinstance(v, str) and k in keys:
+                if k == "arguments":
+                    out[k] = _mask_json_string(v)  # 工具调用参数:JSON 感知脱敏
+                else:
+                    with state.lock:
+                        masked, _ = mask_text(v, state.masker)
+                    out[k] = masked
+            else:
+                out[k] = mask_json(v, keys, in_sensitive=k in keys)
+        return out
+    if isinstance(obj, list):
+        out = []
+        for v in obj:
+            if isinstance(v, str) and in_sensitive:
+                with state.lock:
+                    masked, _ = mask_text(v, state.masker)
+                out.append(masked)
+            else:
+                out.append(mask_json(v, keys, in_sensitive=in_sensitive))
+        return out
+    return obj
+
+
+def _mask_json_string(s):
+    """把工具调用参数(JSON 字符串)整体脱敏:内部所有字符串值视为敏感内容。
+    还原侧见 _restore_json_string。"""
+    try:
+        obj = json.loads(s)
+    except Exception:
+        return s
+    if isinstance(obj, dict) or isinstance(obj, list):
+        return json.dumps(_mask_all_strings(obj), ensure_ascii=False)
+    return s
+
+
+def _mask_all_strings(obj):
+    """对任意嵌套结构中所有字符串值执行脱敏(工具参数内容整体敏感)。"""
+    if isinstance(obj, dict):
+        out = {}
+        for k, v in obj.items():
+            if isinstance(v, str):
                 with state.lock:
                     masked, _ = mask_text(v, state.masker)
                 out[k] = masked
             else:
-                out[k] = mask_json(v, keys)
+                out[k] = _mask_all_strings(v)
         return out
     if isinstance(obj, list):
-        return [mask_json(v, keys) for v in obj]
+        out = []
+        for v in obj:
+            if isinstance(v, str):
+                with state.lock:
+                    masked, _ = mask_text(v, state.masker)
+                out.append(masked)
+            else:
+                out.append(_mask_all_strings(v))
+        return out
     return obj
+
+
+def _snapshot_mapping():
+    """锁内快照映射,供还原侧无竞态读取(dict 并发扩容会抛 RuntimeError)。"""
+    with state.lock:
+        return dict(state.masker.mapping)
 
 
 def restore_json(obj):
     """递归还原 content/text/summary 字段;工具调用参数(arguments JSON 字符串)
-    单独处理(D3 修复)。"""
-    if isinstance(obj, dict):
-        out = {}
-        for k, v in obj.items():
-            if isinstance(v, str) and k in RESTORE_KEYS:
-                out[k] = restore_text(v, state.masker.mapping)
-            elif k == "arguments" and isinstance(v, str):
-                out[k] = _restore_json_string(v)
-            else:
-                out[k] = restore_json(v)
-        return out
-    if isinstance(obj, list):
-        return [restore_json(v) for v in obj]
-    return obj
+    单独处理(D3 修复)。使用锁内快照,避免并发写竞态(P2-4)。"""
+    mapping = _snapshot_mapping()
+
+    def _restore(v):
+        if isinstance(v, dict):
+            out = {}
+            for k, x in v.items():
+                if isinstance(x, str) and k in RESTORE_KEYS:
+                    out[k] = restore_text(x, mapping)
+                elif k == "arguments" and isinstance(x, str):
+                    out[k] = _restore_json_string(x)
+                else:
+                    out[k] = _restore(x)
+            return out
+        if isinstance(v, list):
+            return [_restore(x) for x in v]
+        return v
+
+    return _restore(obj)
 
 
 def _restore_json_string(s):
@@ -136,7 +205,8 @@ class StreamRestorer:
 
     def feed(self, chunk):
         s = self.pending + chunk
-        tokens = sorted(state.masker.mapping, key=len, reverse=True)
+        mapping = _snapshot_mapping()  # 锁内快照,避免并发写竞态
+        tokens = sorted(mapping, key=len, reverse=True)
         out = []
         i = 0
         while i < len(s):
@@ -146,7 +216,7 @@ class StreamRestorer:
                     hit = t
                     break
             if hit:
-                out.append(state.masker.mapping[hit])
+                out.append(mapping[hit])
                 i += len(hit)
             else:
                 out.append(s[i])
@@ -252,7 +322,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
                 state.events.add(
                     "request",
                     method=self.command,
-                    path=self.path,
+                    path=self.path.split("?")[0],  # 事件不落查询串(防敏感 query 进 events)
                     new_findings=len(new_tokens),
                     total=len(state.masker.mapping),
                 )
@@ -371,8 +441,12 @@ class GatewayHandler(BaseHTTPRequestHandler):
             if isinstance(obj.get("response"), dict):
                 obj["response"] = restore_json(obj["response"])
             restorer.reset()
-        elif typ in ("response.content_part.delta",) and isinstance(obj.get("delta"), str):
-            obj["delta"] = restorer.feed(obj["delta"])
+        elif typ in ("response.content_part.delta",):
+            delta = obj.get("delta")
+            if isinstance(delta, str):
+                obj["delta"] = restorer.feed(delta)
+            elif isinstance(delta, dict) and isinstance(delta.get("text"), str):
+                delta["text"] = restorer.feed(delta["text"])  # 兼容对象形态 delta
         elif typ == "response.function_call_arguments.done" and isinstance(obj.get("arguments"), str):
             obj["arguments"] = _restore_json_string(obj["arguments"])
         elif "choices" in obj:
