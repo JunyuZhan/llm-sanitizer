@@ -31,7 +31,7 @@ Agent ← [local gateway: restore] ← cloud
 - **Chinese-sensitive-data rules** — ID numbers (with checksum validation), phone/landline, email, unified social credit codes, court & prosecutorial office names, names (context-aware), addresses, dates of birth
 - **Consistent, restorable tokens** — `[姓名_1]`-style placeholders persist across requests and restarts (`map.json`), restored exactly on the way back
 - **SSE streaming support** — handles token fragments split across network chunks
-- **OpenAI-compatible** — Responses API and Chat Completions, JSON and SSE
+- **All protocols** — OpenAI (Responses/Chat) passthrough plus native adapters for Anthropic (Claude Code) and Google (Gemini); every mainstream model works per protocol (OpenAI-compatible: GPT/DeepSeek/Zhipu/Kimi/Qwen/Doubao/Groq/OpenRouter/local vLLM·Ollama…; Claude; Gemini) — see [dev doc §8.2](docs/开发文档.md#82-模型与服务商覆盖按协议归类)
 - **Zero third-party dependencies** — pure Python standard library
 - **Live dashboard** — real-time view of what was masked (placeholders only, never plaintext)
 - **Extensible** — custom rules, custom word lists, new agents and document formats (see [Extending](docs/extending.md))

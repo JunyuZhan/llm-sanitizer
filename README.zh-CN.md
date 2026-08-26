@@ -31,7 +31,7 @@ Agent ← [本地网关:还原] ← 云端
 - **中文敏感信息识别** — 身份证(带校验和验证)、手机/座机、邮箱、统一社会信用代码、司法机关名称、姓名(上下文感知)、地址、出生日期
 - **一致可还原的占位符** — `[姓名_1]` 格式跨请求、跨重启保持一致(`map.json`),返回时精确还原
 - **SSE 流式支持** — 处理被网络分片切碎的占位符 token
-- **OpenAI 兼容** — 同时支持 Responses API 与 Chat Completions,JSON 与 SSE
+- **全协议覆盖** — OpenAI(Responses/Chat)直通,Anthropic(Claude Code)与 Google(Gemini)原生适配;**市面主流模型按协议即插即用**(OpenAI 兼容:GPT/DeepSeek/智谱/Kimi/通义/豆包/Groq/OpenRouter/本地 vLLM·Ollama…;Claude;Gemini),见[开发文档 §8.2](docs/开发文档.md#82-模型与服务商覆盖按协议归类)
 - **零第三方依赖** — 纯 Python 标准库
 - **实时看板** — 实时查看脱敏情况(只展示占位符,绝不展示明文)
 - **可扩展** — 自定义规则、自定义词表、新 Agent 与新文档格式(见[扩展指南](docs/extending.md))

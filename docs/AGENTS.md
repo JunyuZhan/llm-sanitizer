@@ -53,9 +53,23 @@ export ANTHROPIC_API_KEY="sk-ant-dummy"   # 占位即可,网关注入真实密�
 claude
 ```
 
-网关会自动处理 Anthropic 协议差异:透传 `anthropic-version`、注入 `x-api-key`、还原 SSE 流式与工具调用参数。验证见[第 5 节](#5-验证是否生效必做)。
+网关会自动处理 Anthropic 协议差异:透传 `anthropic-version`、注入 `x-api-key`、还原 SSE 流式与工具调用参数。验证见[第 6 节](#6-验证是否生效必做)。
 
-## 3. WorkBuddy
+## 3. Gemini CLI / Gemini API(Google 协议,v0.2 支持)
+
+```bash
+# 网关上游配置为 Google(控制台设置或环境变量):
+#   LLM_SANITIZER_UPSTREAM=https://generativelanguage.googleapis.com(注意:不加 /v1beta)
+#   LLM_SANITIZER_KEY=<Gemini API Key>  # 网关注入 Authorization Bearer
+
+# Gemini CLI 指向网关:
+export GEMINI_API_KEY="<任意占位>"
+# 在 Gemini CLI 的 provider 配置中把 baseUrl 指向 http://127.0.0.1:8790
+```
+
+网关自动处理 Google 协议差异:`/v1beta/...` 路径原样转发、`streamGenerateContent` SSE 分片还原。验证见[第 6 节](#6-已知限制)。
+
+## 4. WorkBuddy
 
 WorkBuddy 支持 OpenAI 兼容的自定义模型:
 
@@ -64,7 +78,7 @@ WorkBuddy 支持 OpenAI 兼容的自定义模型:
 3. API Key:你的上游密钥(或任意值,若网关配置了统一 `LLM_SANITIZER_KEY`)。
 4. 模型名:填你实际使用的模型 ID。
 
-## 4. OpenClaw / 其他 OpenAI 兼容客户端
+## 5. OpenClaw / 其他 OpenAI 兼容客户端
 
 通用步骤:
 
@@ -73,7 +87,7 @@ WorkBuddy 支持 OpenAI 兼容的自定义模型:
 3. 协议选择 OpenAI 兼容(Responses 或 Chat Completions,视客户端而定)。
 4. 重启客户端。
 
-## 5. 验证是否生效(必做)
+## 6. 验证是否生效(必做)
 
 在对话中发送一条含测试信息(如"申请人张三,电话13912345678")的消息,然后打开看板 `http://127.0.0.1:8791`,应能看到新增脱敏事件(类别 `姓名`、`手机号`,占位符 `[姓名_1]`、`[手机号_1]`)。
 
@@ -85,13 +99,13 @@ WorkBuddy 支持 OpenAI 兼容的自定义模型:
 - [ ] 发送含测试隐私的消息后,看板 2 秒内出现脱敏事件
 - [ ] 回复内容正常还原(无 `[姓名_1]` 残留;工具调用参数中的残留见需求文档 §9 R7)
 
-## 6. 已知限制
+## 7. 已知限制
 
 - v0.2 起网关内置 WebSocket 透明代理,可拦截走 WebSocket 的客户端(文本脱敏/还原)。接入后务必用测试消息验证。
 - 桌面版 Codex 的对话消息可能不经 HTTP 网关(取决于版本与传输方式);接入后请务必用测试消息验证。
 - 工具调用参数中的占位符残留属 v0.1 已知缺口(风险 R7,见[需求文档](需求文档.md#9-已知限制与风险实测发现如实记录))。
 
-## 7. 接入新 Agent(贡献指南)
+## 8. 接入新 Agent(贡献指南)
 
 **第一步:判断协议**。
 

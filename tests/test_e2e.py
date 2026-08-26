@@ -424,6 +424,62 @@ class TestAnthropicSSE(GatewayFixture):
         self.assertNotIn("[姓名_1]", text)
 
 
+class TestGeminiJSON(GatewayFixture):
+    """协议适配(v0.2):Google Gemini generateContent 非流式。"""
+
+    mock_mode = "gemini_json"
+
+    def _payload(self):
+        return {
+            "contents": [{"role": "user", "parts": [{"text": SENSITIVE}]}],
+            "systemInstruction": {"parts": [{"text": "你是助理"}]},
+        }
+
+    def test_upstream_sees_placeholders_only(self):
+        """上游 contents.parts.text 只含占位符。"""
+        status, _ = _post(self.gport, "/v1beta/models/gemini-pro:generateContent", self._payload())
+        self.assertEqual(status, 200)
+        raw = self.mock.bodies_text()
+        self.assertNotIn("张三", raw)
+        self.assertNotIn("13912345678", raw)
+        self.assertIn("[姓名_1]", raw)
+        self.assertIn("[手机号_1]", raw)
+
+    def test_client_receives_restored_text(self):
+        _, body = _post(self.gport, "/v1beta/models/gemini-pro:generateContent", self._payload())
+        data = json.loads(body)
+        text = data["candidates"][0]["content"]["parts"][0]["text"]
+        self.assertIn("张三", text)
+        self.assertNotIn("[姓名_1]", text)
+
+    def test_forward_path_keeps_v1beta(self):
+        """回归:/v1beta 前缀不能被误剥(Gemini 路径)。"""
+        self.assertEqual(
+            gw.forward_path("https://generativelanguage.googleapis.com",
+                            "/v1beta/models/gemini-pro:generateContent"),
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent")
+        # /v1 前缀仍正常剥离(OpenAI)
+        self.assertEqual(
+            gw.forward_path("https://api.openai.com/v1", "/v1/chat/completions"),
+            "https://api.openai.com/v1/chat/completions")
+
+
+class TestGeminiSSE(GatewayFixture):
+    """协议适配:Gemini streamGenerateContent SSE 分片还原。"""
+
+    mock_mode = "gemini_sse"
+
+    def test_gemini_sse_restore(self):
+        status, body = _post(self.gport, "/v1beta/models/gemini-pro:streamGenerateContent?alt=sse", {
+            "contents": [{"role": "user", "parts": [{"text": SENSITIVE}]}],
+        })
+        self.assertEqual(status, 200)
+        text = body.decode("utf-8")
+        self.assertIn("张三", text)
+        self.assertIn("13912345678", text)
+        self.assertNotIn("[姓名_1]", text)
+
+
 class TestWebSocket(GatewayFixture):
     """v0.2:WebSocket 透明代理(R1 缺口修复)。"""
 

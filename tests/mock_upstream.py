@@ -101,6 +101,16 @@ class MockUpstream:
             })
         elif self.mode == "anthropic_sse":
             self._sse_anthropic(handler, "好的,[姓名_1] 的号码是 [手机号_1]")
+        elif self.mode == "gemini_json":
+            self._json(handler, {
+                "candidates": [{
+                    "content": {"role": "model",
+                                "parts": [{"text": "好的,[姓名_1] 的号码是 [手机号_1]"}]},
+                    "finishReason": "STOP",
+                }]
+            })
+        elif self.mode == "gemini_sse":
+            self._sse_gemini(handler, "好的,[姓名_1] 的号码是 [手机号_1]")
 
     def _json(self, handler, obj):
         data = json.dumps(obj, ensure_ascii=False).encode()
@@ -138,6 +148,23 @@ class MockUpstream:
             handler.wfile.flush()
         ev = json.dumps({"type": "message_stop"}, ensure_ascii=False)
         handler.wfile.write(f"event: message_stop\ndata: {ev}\n\n".encode())
+        handler.wfile.flush()
+        handler.close_connection = True
+
+    def _sse_gemini(self, handler, text):
+        """Gemini streamGenerateContent SSE:data 行是 candidates JSON,分片发送。"""
+        handler.send_response(200)
+        handler.send_header("Content-Type", "text/event-stream")
+        handler.end_headers()
+        for i in range(0, len(text), self.chunk):
+            piece = text[i : i + self.chunk]
+            ev = json.dumps({"candidates": [{"content": {"parts": [{"text": piece}]}}]},
+                            ensure_ascii=False)
+            handler.wfile.write(f"data: {ev}\n\n".encode())
+            handler.wfile.flush()
+        ev = json.dumps({"candidates": [{"content": {"parts": [{"text": ""}]},
+                                         "finishReason": "STOP"}]}, ensure_ascii=False)
+        handler.wfile.write(f"data: {ev}\n\n".encode())
         handler.wfile.flush()
         handler.close_connection = True
 

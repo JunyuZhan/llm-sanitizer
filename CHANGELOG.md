@@ -30,6 +30,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `message_stop` reset; response `tool_use.input` (arbitrary JSON) fully restored.
 - Tests: +5 (Anthropic: upstream placeholders-only, text+tool_use.input restore, header
   forwarding, auth_headers matrix, SSE chunk restore) — 60 total, all pass.
+- **Google Gemini protocol support**: `/v1beta` paths no longer stripped by forward_path
+  (was a real bug — any `/v1beta/...` upstream 404'd); `candidates[].content.parts[].text`
+  stream-restored in SSE with finishReason reset; request masking covers contents/systemInstruction.
+  All three mainstream protocols now covered.
+- Docs: protocol matrix (OpenAI/Anthropic/Gemini all v0.2 ✅) + provider/model coverage table
+  grouped by protocol (per-protocol passthrough = every model in that family); AGENTS.md §3
+  Gemini CLI; README feature line updated.
+- Tests: +4 (Gemini JSON masking/restore, v1beta path regression, Gemini SSE chunk restore)
+  — 64 total, all pass.
 
 ## [0.1.0] - 2026-08-27
 

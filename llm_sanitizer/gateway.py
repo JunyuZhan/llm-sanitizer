@@ -266,12 +266,16 @@ class StreamRestorer:
 # 转发
 # ---------------------------------------------------------------------------
 def forward_path(base, req_path):
-    """客户端路径统一去 /v1 前缀，再拼到上游 base。"""
+    """客户端路径统一去 /v1 前缀(仅精确 /v1 或 /v1/),再拼到上游 base。
+
+    注意:只剥离 /v1 与 /v1/ 前缀——/v1beta 等路径必须原样保留
+    (Gemini generateContent 用 /v1beta/models/...,曾因误剥前缀而 404)。
+    """
     base_clean = base.rstrip("/")
     query = ""
     if "?" in req_path:
         req_path, query = req_path.split("?", 1)
-    if req_path.startswith("/v1"):
+    if req_path == "/v1" or req_path.startswith("/v1/"):
         req_path = req_path[len("/v1"):] or "/"
     return base_clean + req_path + ("?" + query if query else "")
 
@@ -492,6 +496,19 @@ class GatewayHandler(BaseHTTPRequestHandler):
                 d["text"] = restorer.feed(d["text"])
         elif typ in ("message_stop", "content_block_stop"):
             restorer.reset()
+        elif "candidates" in obj:
+            # Google Gemini generateContent(含 streamGenerateContent SSE):
+            # candidates[].content.parts[].text 走流式缓冲,finishReason 时重置
+            for cand in obj.get("candidates") or []:
+                if not isinstance(cand, dict):
+                    continue
+                content = cand.get("content")
+                if isinstance(content, dict):
+                    for part in content.get("parts") or []:
+                        if isinstance(part, dict) and isinstance(part.get("text"), str):
+                            part["text"] = restorer.feed(part["text"])
+                if cand.get("finishReason"):
+                    restorer.reset()
         elif "choices" in obj:
             for ch in obj.get("choices") or []:
                 if not isinstance(ch, dict):
