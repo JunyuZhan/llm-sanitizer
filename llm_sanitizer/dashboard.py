@@ -57,7 +57,8 @@ async function refresh() {
   try {
     const r = await fetch('/api/status');
     const d = await r.json();
-    document.getElementById('live').className = 'off';
+    document.getElementById('live').className = '';
+    document.getElementById('live').textContent = '运行中';
     document.getElementById('total').textContent = d.total_masked;
     document.getElementById('requests').textContent = d.requests;
     const cats = Object.keys(d.by_category).length;
@@ -74,6 +75,7 @@ async function refresh() {
       '<tr><td>' + e.ts + '</td><td>' + e.method + '</td><td class="mono">' + e.path + '</td>' +
       '<td>' + e.new_findings + '</td></tr>').join('');
   } catch (e) {
+    document.getElementById('live').className = 'off';
     document.getElementById('live').textContent = '看板服务异常';
   }
 }
@@ -93,6 +95,15 @@ class DashboardHandler(BaseHTTPRequestHandler):
         pass
 
     def do_GET(self):
+        # FR-8:拒绝跨域 Origin(防 DNS rebinding 页面读取看板数据)
+        origin = self.headers.get("Origin") or ""
+        if origin:
+            o_host = origin.split("//")[-1].split("/")[0].split(":")[0].lower()
+            if o_host not in ("127.0.0.1", "localhost"):
+                self.send_response(403)
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
         path = urlparse(self.path).path
         if path in ("/", "/index.html"):
             body = PAGE.encode("utf-8")

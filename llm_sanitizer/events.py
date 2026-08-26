@@ -40,6 +40,7 @@ class EventStore:
                     os.makedirs(os.path.dirname(self.path), exist_ok=True)
                     with open(self.path, "a", encoding="utf-8") as f:
                         f.write(json.dumps(ev, ensure_ascii=False) + "\n")
+                    os.chmod(self.path, 0o600)  # 敏感文件统一 600(FR-8/D7)
             except Exception:
                 pass
         return ev

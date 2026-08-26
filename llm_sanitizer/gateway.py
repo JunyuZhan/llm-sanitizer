@@ -47,6 +47,7 @@ def init_state(upstream=None, upstream_key=None, map_path=None, events_path=None
         str(events_path or config.events_path()),
     )
     st.masker.load_mapping(_load_json(st.map_path))
+    state = st  # 修复:必须赋给全局,否则请求处理时 state 为 None
     return st
 
 
@@ -96,17 +97,30 @@ def mask_json(obj, keys):
 
 
 def restore_json(obj):
+    """递归还原 content/text/summary 字段;工具调用参数(arguments JSON 字符串)
+    单独处理(D3 修复)。"""
     if isinstance(obj, dict):
         out = {}
         for k, v in obj.items():
             if isinstance(v, str) and k in RESTORE_KEYS:
                 out[k] = restore_text(v, state.masker.mapping)
+            elif k == "arguments" and isinstance(v, str):
+                out[k] = _restore_json_string(v)
             else:
                 out[k] = restore_json(v)
         return out
     if isinstance(obj, list):
         return [restore_json(v) for v in obj]
     return obj
+
+
+def _restore_json_string(s):
+    """把 JSON 字符串中的占位符还原(如 tool_calls[].function.arguments)。"""
+    try:
+        obj = json.loads(s)
+    except Exception:
+        return s
+    return json.dumps(restore_json(obj), ensure_ascii=False)
 
 
 class StreamRestorer:
@@ -197,7 +211,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
     server_version = "LLMSanitizer/0.1"
 
     def log_message(self, fmt, *args):
-        if state.verbose:
+        if state and state.verbose:
             sys.stderr.write("[gateway] " + fmt % args + "\n")
 
     def do_GET(self):
@@ -209,16 +223,29 @@ class GatewayHandler(BaseHTTPRequestHandler):
         self._route(body)
 
     def _route(self, body):
+        # FR-8:校验 Host / Origin,防 DNS rebinding 与跨站请求
+        host = (self.headers.get("Host") or "").split(":")[0].lower()
+        if host not in ("127.0.0.1", "localhost"):
+            self._json_error(403, "forbidden host")
+            return
+        origin = self.headers.get("Origin") or ""
+        if origin:
+            o_host = origin.split("//")[-1].split("/")[0].split(":")[0].lower()
+            if o_host not in ("127.0.0.1", "localhost"):
+                self._json_error(403, "forbidden origin")
+                return
         try:
             payload = body
             if body and body.lstrip().startswith(b"{"):
                 obj = json.loads(body)
-                before = set(state.masker.mapping)
+                with state.lock:
+                    before = set(state.masker.mapping)
                 masked_obj = mask_json(obj, MASK_KEYS)
                 payload = json.dumps(masked_obj, ensure_ascii=False).encode("utf-8")
-                with state.lock:
+                with state.lock:  # D4 修复:map.json 写入持锁
                     new_tokens = set(state.masker.mapping) - before
                     state.total_findings += len(new_tokens)
+                    _save_json(state.map_path, state.masker.mapping)
                 for token in new_tokens:
                     state.events.add("mask", category=token_category(token), token=token)
                 state.events.add(
@@ -232,7 +259,6 @@ class GatewayHandler(BaseHTTPRequestHandler):
                     f"[gateway] {time.strftime('%H:%M:%S')} {self.command} {self.path} "
                     f"新增脱敏 {len(new_tokens)} 项（累计 {state.total_findings} 项）\n"
                 )
-                _save_json(state.map_path, state.masker.mapping)
             self._forward(payload)
         except (json.JSONDecodeError, UnicodeDecodeError) as e:
             self._json_error(400, f"bad request json: {e}")
@@ -244,6 +270,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
         try:
             resp = forward(conn, self.command, self.path, dict(self.headers.items()), body)
         except Exception as e:
+            conn.close()  # D6 修复:异常路径释放连接
             self._json_error(502, f"upstream unreachable: {e}")
             return
         ctype = resp.getheader("Content-Type", "") or ""
@@ -345,6 +372,8 @@ class GatewayHandler(BaseHTTPRequestHandler):
             restorer.reset()
         elif typ in ("response.content_part.delta",) and isinstance(obj.get("delta"), str):
             obj["delta"] = restorer.feed(obj["delta"])
+        elif typ == "response.function_call_arguments.done" and isinstance(obj.get("arguments"), str):
+            obj["arguments"] = _restore_json_string(obj["arguments"])
         elif "choices" in obj:
             for ch in obj.get("choices") or []:
                 if not isinstance(ch, dict):
@@ -352,12 +381,24 @@ class GatewayHandler(BaseHTTPRequestHandler):
                 delta = ch.get("delta")
                 if isinstance(delta, dict) and isinstance(delta.get("content"), str):
                     delta["content"] = restorer.feed(delta["content"])
+                if isinstance(delta, dict) and isinstance(delta.get("tool_calls"), list):
+                    for tc in delta["tool_calls"]:
+                        if isinstance(tc, dict) and isinstance(tc.get("function"), dict):
+                            fn = tc["function"]
+                            if isinstance(fn.get("arguments"), str):
+                                fn["arguments"] = _restore_json_string(fn["arguments"])
                 msg = ch.get("message")
                 if isinstance(msg, dict) and isinstance(msg.get("content"), str):
                     msg["content"] = restore_text(msg["content"], state.masker.mapping)
                     restorer.reset()
+                if isinstance(msg, dict) and isinstance(msg.get("tool_calls"), list):
+                    for tc in msg["tool_calls"]:
+                        if isinstance(tc, dict) and isinstance(tc.get("function"), dict):
+                            fn = tc["function"]
+                            if isinstance(fn.get("arguments"), str):
+                                fn["arguments"] = _restore_json_string(fn["arguments"])
         else:
-            restore_json(obj)
+            obj.update(restore_json(obj))  # D2 修复:使用还原后的返回值
 
     def _json_error(self, status, message):
         body = json.dumps({"error": {"message": message}}, ensure_ascii=False).encode()
