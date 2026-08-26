@@ -39,6 +39,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Gemini CLI; README feature line updated.
 - Tests: +4 (Gemini JSON masking/restore, v1beta path regression, Gemini SSE chunk restore)
   — 64 total, all pass.
+- **Multimodal text fragments masked**: `alt`/`filename`/`name` added to MASK_KEYS and
+  (symmetrically) RESTORE_KEYS — image descriptions and attachment names no longer slip out.
+- **Format-preserving masking for docx/xlsx** (`llm_sanitizer/formats.py`): rewrites only text
+  nodes (`w:t`/`w:delText`/`t`) inside the ZIP's XML, escaping-aware, styles untouched; CLI
+  `mask`/`restore` dispatch by extension; round-trip is byte-exact (verified). PDF deferred (pure
+  stdlib text extraction unreliable).
+- Tests: +5 (docx structure preserved + restore byte-exact, xlsx sharedStrings, is_zip_doc,
+  non-text XML untouched) — 69 total, all pass.
 
 ## [0.1.0] - 2026-08-27
 

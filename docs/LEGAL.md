@@ -4,7 +4,7 @@
 
 1. **文书分析**:起诉状、判决书、证据目录交给 Agent 前,先经网关脱敏。
 2. **合同审查**:用 WorkBuddy 审合同,看板实时展示被脱敏的当事人信息。
-3. **批量文件**:用 `llm-sanitizer mask 文件` 对单个文件先行脱敏,再手动上传。
+3. **批量文件**:用 `llm-sanitizer mask 文件` 对单个文件先行脱敏再交 Agent——文本/CSV/JSON/SQL/代码直接处理,docx/xlsx 保留格式(见 [开发文档 §formats](开发文档.md#formatspy))。
 
 ## 工作流建议
 

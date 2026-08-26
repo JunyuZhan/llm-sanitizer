@@ -18,10 +18,12 @@ from . import websocket as ws
 from .events import EventStore
 from .masker import Masker, mask_text, restore_text
 
-# 请求侧:这些字段里的文本会被脱敏(含 arguments:工具调用参数 JSON 字符串)
-MASK_KEYS = {"content", "text", "input", "instructions", "prompt", "system", "description", "arguments"}
-# 响应侧：这些字段里的文本会被还原（delta 字段单独走流式缓冲）
-RESTORE_KEYS = {"content", "text", "summary"}
+# 请求侧:这些字段里的文本会被脱敏(含 arguments:工具调用参数 JSON 字符串;
+# alt/filename/name:多模态图片描述与附件元数据,补齐覆盖盲区)
+MASK_KEYS = {"content", "text", "input", "instructions", "prompt", "system",
+             "description", "arguments", "alt", "filename", "name"}
+# 响应侧：这些字段里的文本会被还原（delta 字段单独走流式缓冲;与 MASK_KEYS 对称）
+RESTORE_KEYS = {"content", "text", "summary", "alt", "filename", "name"}
 SSE = "text/event-stream"
 
 
