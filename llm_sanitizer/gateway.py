@@ -167,7 +167,7 @@ def _snapshot_mapping():
 
 def restore_json(obj):
     """递归还原 content/text/summary 字段;工具调用参数(arguments JSON 字符串)
-    单独处理(D3 修复)。使用锁内快照,避免并发写竞态(P2-4)。"""
+    与 Anthropic tool_use.input(dict)单独处理。使用锁内快照,避免并发写竞态。"""
     mapping = _snapshot_mapping()
 
     def _restore(v):
@@ -178,6 +178,8 @@ def restore_json(obj):
                     out[k] = restore_text(x, mapping)
                 elif k == "arguments" and isinstance(x, str):
                     out[k] = _restore_json_string(x)
+                elif k == "input" and isinstance(x, dict):
+                    out[k] = _restore_all_strings(x)  # Anthropic tool_use.input(任意 JSON)
                 else:
                     out[k] = _restore(x)
             return out
@@ -186,6 +188,22 @@ def restore_json(obj):
         return v
 
     return _restore(obj)
+
+
+def _restore_all_strings(obj):
+    """对任意嵌套结构中所有字符串值执行还原(tool_use.input 对称 _mask_all_strings)。"""
+    mapping = _snapshot_mapping()
+
+    def _go(x):
+        if isinstance(x, dict):
+            return {k: _go(v) for k, v in x.items()}
+        if isinstance(x, list):
+            return [_go(v) for v in x]
+        if isinstance(x, str):
+            return restore_text(x, mapping)
+        return x
+
+    return _go(obj)
 
 
 def _restore_json_string(s):
@@ -266,14 +284,23 @@ def open_upstream():
     return conn_cls(parsed.hostname, port, timeout=900)
 
 
+def auth_headers(upstream, key):
+    """协议适配:Anthropic 上游用 x-api-key,其余用 Authorization Bearer。"""
+    if not key:
+        return {}
+    if "anthropic.com" in upstream:
+        return {"x-api-key": key}
+    return {"Authorization": "Bearer " + key}
+
+
 def forward(conn, method, path, headers, body):
     out_headers = {"Accept-Encoding": "identity", "Content-Length": str(len(body))}
     for k, v in headers.items():
         lk = k.lower()
-        if lk in ("authorization", "content-type", "accept", "user-agent") or lk.startswith("x-"):
+        if lk in ("authorization", "content-type", "accept", "user-agent",
+                  "anthropic-version", "anthropic-dangerous-direct-browser-access") or lk.startswith("x-"):
             out_headers[k] = v
-    if state.upstream_key:
-        out_headers["Authorization"] = "Bearer " + state.upstream_key
+    out_headers.update(auth_headers(state.upstream, state.upstream_key))
     conn.request(method, forward_path(state.upstream, path), body=body, headers=out_headers)
     return conn.getresponse()
 
@@ -458,6 +485,13 @@ class GatewayHandler(BaseHTTPRequestHandler):
                 delta["text"] = restorer.feed(delta["text"])  # 兼容对象形态 delta
         elif typ == "response.function_call_arguments.done" and isinstance(obj.get("arguments"), str):
             obj["arguments"] = _restore_json_string(obj["arguments"])
+        # Anthropic Messages SSE(协议适配,v0.2):content_block_delta 文本分片走流式缓冲
+        elif typ == "content_block_delta" and isinstance(obj.get("delta"), dict):
+            d = obj["delta"]
+            if d.get("type") == "text_delta" and isinstance(d.get("text"), str):
+                d["text"] = restorer.feed(d["text"])
+        elif typ in ("message_stop", "content_block_stop"):
+            restorer.reset()
         elif "choices" in obj:
             for ch in obj.get("choices") or []:
                 if not isinstance(ch, dict):

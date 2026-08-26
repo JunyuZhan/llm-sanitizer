@@ -24,6 +24,7 @@ class _Handler(BaseHTTPRequestHandler):
         n = int(self.headers.get("Content-Length") or 0)
         body = self.rfile.read(n) if n else b""
         self.server.upstream.received.append(body)
+        self.server.upstream.received_headers.append(dict(self.headers))
         self.server.upstream._respond(self)
 
     def do_GET(self):
@@ -31,12 +32,14 @@ class _Handler(BaseHTTPRequestHandler):
 
 
 class MockUpstream:
-    """mode: chat_json / chat_sse / responses_json / responses_sse。"""
+    """mode: chat_json / chat_sse / responses_json / responses_sse /
+    anthropic_json / anthropic_sse。"""
 
     def __init__(self, mode="chat_json", chunk=3):
         self.mode = mode
         self.chunk = chunk          # SSE 每片字符数(故意切碎 token)
         self.received = []
+        self.received_headers = []
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), _Handler)
         self.server.upstream = self
         self.port = self.server.server_address[1]
@@ -84,6 +87,20 @@ class MockUpstream:
             })
         elif self.mode == "responses_sse":
             self._sse(handler, "好的,[姓名_1] 的号码是 [手机号_1]")
+        elif self.mode == "anthropic_json":
+            self._json(handler, {
+                "id": "msg_01",
+                "type": "message",
+                "role": "assistant",
+                "content": [
+                    {"type": "text", "text": "好的,[姓名_1] 的号码是 [手机号_1]"},
+                    {"type": "tool_use", "id": "t1", "name": "lookup",
+                     "input": {"to": "[姓名_1]", "phone": "[手机号_1]"}},
+                ],
+                "stop_reason": "end_turn",
+            })
+        elif self.mode == "anthropic_sse":
+            self._sse_anthropic(handler, "好的,[姓名_1] 的号码是 [手机号_1]")
 
     def _json(self, handler, obj):
         data = json.dumps(obj, ensure_ascii=False).encode()
@@ -104,6 +121,23 @@ class MockUpstream:
             handler.wfile.write(f"data: {ev}\n\n".encode())
             handler.wfile.flush()
         handler.wfile.write(b"data: [DONE]\n\n")
+        handler.wfile.flush()
+        handler.close_connection = True
+
+    def _sse_anthropic(self, handler, text):
+        """Anthropic Messages SSE:content_block_delta(text_delta) 分片 + message_stop。"""
+        handler.send_response(200)
+        handler.send_header("Content-Type", "text/event-stream")
+        handler.end_headers()
+        for i in range(0, len(text), self.chunk):
+            piece = text[i : i + self.chunk]
+            ev = json.dumps({"type": "content_block_delta", "index": 0,
+                             "delta": {"type": "text_delta", "text": piece}},
+                            ensure_ascii=False)
+            handler.wfile.write(f"event: content_block_delta\ndata: {ev}\n\n".encode())
+            handler.wfile.flush()
+        ev = json.dumps({"type": "message_stop"}, ensure_ascii=False)
+        handler.wfile.write(f"event: message_stop\ndata: {ev}\n\n".encode())
         handler.wfile.flush()
         handler.close_connection = True
 

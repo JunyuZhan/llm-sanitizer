@@ -24,6 +24,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `POST /api/agents/apply|restore` (X-Local-Token).
 - Tests: +11 cases (config_manager unit: detect/apply/backup/idempotent/restore/permissions;
   console apply 403 + round-trip) — 55 total, all pass.
+- **Anthropic Messages protocol support (Claude Code)**: `anthropic-version` header
+  whitelisted; API key injected as `x-api-key` for anthropic.com upstreams (Bearer otherwise,
+  pure helper `auth_headers`); SSE `content_block_delta`/text_delta stream-restored with
+  `message_stop` reset; response `tool_use.input` (arbitrary JSON) fully restored.
+- Tests: +5 (Anthropic: upstream placeholders-only, text+tool_use.input restore, header
+  forwarding, auth_headers matrix, SSE chunk restore) — 60 total, all pass.
 
 ## [0.1.0] - 2026-08-27
 

@@ -353,6 +353,77 @@ class TestConsole(GatewayFixture):
         self.assertIn("张三丰", p.read_text(encoding="utf-8"))
 
 
+class TestAnthropicJSON(GatewayFixture):
+    """协议适配(v0.2):Anthropic Messages API 非流式(Claude Code)。"""
+
+    mock_mode = "anthropic_json"
+
+    def _payload(self):
+        return {
+            "model": "claude-3-5-sonnet",
+            "max_tokens": 256,
+            "messages": [{"role": "user", "content": SENSITIVE}],
+            "system": "你是助理",
+        }
+
+    def last_raw(self):
+        return self.mock.received[-1].decode("utf-8", "replace") if self.mock.received else ""
+
+    def test_upstream_sees_placeholders_only(self):
+        """AC-1(Anthropic):上游 messages content 只含占位符。"""
+        status, _ = _post(self.gport, "/v1/messages", self._payload())
+        self.assertEqual(status, 200)
+        raw = self.last_raw()
+        self.assertNotIn("张三", raw)
+        self.assertNotIn("13912345678", raw)
+        self.assertIn("[姓名_1]", raw)
+        self.assertIn("[手机号_1]", raw)
+        self.assertIn("[地址_1]", raw)
+
+    def test_client_receives_restored_text_and_tool_input(self):
+        """响应 text 与 tool_use.input(任意 JSON)均还原。"""
+        _, body = _post(self.gport, "/v1/messages", self._payload())
+        data = json.loads(body)
+        text = data["content"][0]["text"]
+        self.assertIn("张三", text)
+        self.assertNotIn("[姓名_1]", text)
+        tool_input = data["content"][1]["input"]
+        self.assertEqual(tool_input["to"], "张三")
+        self.assertEqual(tool_input["phone"], "13912345678")
+
+    def test_anthropic_version_header_forwarded(self):
+        """Anthropic 必填头 anthropic-version 必须透传上游。"""
+        _post(self.gport, "/v1/messages", self._payload(),
+              headers={"anthropic-version": "2023-06-01"})
+        self.assertEqual(self.mock.received_headers[-1].get("anthropic-version"), "2023-06-01")
+
+    def test_auth_headers(self):
+        """密钥注入:Anthropic 用 x-api-key,其余用 Bearer。"""
+        self.assertEqual(gw.auth_headers("https://api.anthropic.com/v1", "sk-x"),
+                         {"x-api-key": "sk-x"})
+        self.assertEqual(gw.auth_headers("https://api.openai.com/v1", "sk-y"),
+                         {"Authorization": "Bearer sk-y"})
+        self.assertEqual(gw.auth_headers("https://api.deepseek.com/v1", ""), {})
+
+
+class TestAnthropicSSE(GatewayFixture):
+    """协议适配:Anthropic SSE 流式(content_block_delta 分片还原)。"""
+
+    mock_mode = "anthropic_sse"
+
+    def test_anthropic_sse_restore(self):
+        status, body = _post(self.gport, "/v1/messages", {
+            "model": "claude-3-5-sonnet",
+            "max_tokens": 256,
+            "messages": [{"role": "user", "content": SENSITIVE}],
+        })
+        self.assertEqual(status, 200)
+        text = body.decode("utf-8")
+        self.assertIn("张三", text)
+        self.assertIn("13912345678", text)
+        self.assertNotIn("[姓名_1]", text)
+
+
 class TestWebSocket(GatewayFixture):
     """v0.2:WebSocket 透明代理(R1 缺口修复)。"""
 
