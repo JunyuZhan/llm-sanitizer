@@ -65,6 +65,36 @@ class TestCLI(unittest.TestCase):
             self.assertNotIn("张三丰", masked)
             self.assertIn("[手机号_1]", masked)
 
+    def test_installer_dry_run(self):
+        """install.sh dry-run:macOS 生成的 plist 必须是合法 XML(非法会被 launchd 拒收)。"""
+        with tempfile.TemporaryDirectory() as d:
+            env = {
+                **os.environ,
+                "HOME": d,
+                "LLM_SANITIZER_HOME": os.path.join(d, ".llm-sanitizer"),
+                "LLM_SANITIZER_DRY_RUN": "1",
+            }
+            r = subprocess.run(["bash", "install.sh"], capture_output=True, text=True,
+                               cwd=ROOT, env=env)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            if sys.platform == "darwin":
+                plist = os.path.join(d, "Library", "LaunchAgents", "com.llmsanitizer.gateway.plist")
+                self.assertTrue(os.path.exists(plist), "plist 未生成")
+                import xml.etree.ElementTree as ET
+
+                tree = ET.parse(plist)  # 非法 XML 在此抛 ParseError
+                strings = [s.text for s in tree.iter("string")]
+                self.assertIn("start", strings, f"ProgramArguments 缺 start: {strings}")
+                self.assertIn("llm_sanitizer", strings)
+                # 不允许残留字面量 \\n(旧 bug 特征)
+                raw = open(plist, encoding="utf-8").read()
+                self.assertNotIn("\\n", raw)
+            else:
+                unit = os.path.join(d, ".config", "systemd", "user", "llm-sanitizer.service")
+                self.assertTrue(os.path.exists(unit), "systemd unit 未生成")
+                text = open(unit, encoding="utf-8").read()
+                self.assertIn("ExecStart=", text)
+
     def test_status_runs(self):
         r = self._run("status")
         self.assertEqual(r.returncode, 0, r.stderr)

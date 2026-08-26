@@ -429,21 +429,22 @@ class GatewayHandler(BaseHTTPRequestHandler):
     def _transform_event(self, obj, restorer):
         if not isinstance(obj, dict):
             return
+        mapping = _snapshot_mapping()  # 竞态修复补完:一次快照,后续还原全走它
         typ = obj.get("type")
         if typ == "response.output_text.delta" and isinstance(obj.get("delta"), str):
             obj["delta"] = restorer.feed(obj["delta"])
         elif typ == "response.output_text.done" and isinstance(obj.get("text"), str):
-            obj["text"] = restore_text(obj["text"], state.masker.mapping)
+            obj["text"] = restore_text(obj["text"], mapping)
             restorer.reset()
         elif typ == "response.reasoning_text.delta" and isinstance(obj.get("delta"), str):
             obj["delta"] = restorer.feed(obj["delta"])
         elif typ == "response.reasoning_text.done" and isinstance(obj.get("text"), str):
-            obj["text"] = restore_text(obj["text"], state.masker.mapping)
+            obj["text"] = restore_text(obj["text"], mapping)
             restorer.reset()
         elif typ == "response.reasoning_summary.delta" and isinstance(obj.get("summary"), str):
             obj["summary"] = restorer.feed(obj["summary"])
         elif typ == "response.reasoning_summary.done" and isinstance(obj.get("summary"), str):
-            obj["summary"] = restore_text(obj["summary"], state.masker.mapping)
+            obj["summary"] = restore_text(obj["summary"], mapping)
             restorer.reset()
         elif typ == "response.completed":
             if isinstance(obj.get("response"), dict):
@@ -472,7 +473,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
                                 fn["arguments"] = _restore_json_string(fn["arguments"])
                 msg = ch.get("message")
                 if isinstance(msg, dict) and isinstance(msg.get("content"), str):
-                    msg["content"] = restore_text(msg["content"], state.masker.mapping)
+                    msg["content"] = restore_text(msg["content"], mapping)
                     restorer.reset()
                 if isinstance(msg, dict) and isinstance(msg.get("tool_calls"), list):
                     for tc in msg["tool_calls"]:

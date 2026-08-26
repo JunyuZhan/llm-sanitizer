@@ -58,10 +58,12 @@ install() {
       PLIST_DIR="$HOME/Library/LaunchAgents"
       PLIST="$PLIST_DIR/com.llmsanitizer.gateway.plist"
       mkdir -p "$PLIST_DIR"
-      # launchd 不按空格分词:ProgramArguments 必须拆成单词数组
+      # launchd 不按空格分词:ProgramArguments 必须拆成单词数组。
+      # 注意:必须用真实换行拼接(双引号内 \n 是字面量,会让 plist 变成非法 XML)。
       ARGS=""
       for part in $CMD start; do
-        ARGS="$ARGS    <string>$part</string>\n"
+        ARGS="$ARGS
+    <string>$part</string>"
       done
       cat > "$PLIST" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -81,9 +83,15 @@ ${ARGS}  </array>
 </dict>
 </plist>
 EOF
-      launchctl unload "$PLIST" 2>/dev/null || true
-      launchctl load "$PLIST"
-      echo "[llm-sanitizer] 已安装 LaunchAgent:$PLIST"
+      # 自检:plist 必须通过 plutil 校验,否则不执行加载(防止坏 plist 上线)
+      plutil -lint "$PLIST"
+      if [ -z "${LLM_SANITIZER_DRY_RUN:-}" ]; then
+        launchctl unload "$PLIST" 2>/dev/null || true
+        launchctl load "$PLIST"
+        echo "[llm-sanitizer] 已安装 LaunchAgent:$PLIST"
+      else
+        echo "[llm-sanitizer] DRY-RUN:已生成 $PLIST(未加载)"
+      fi
       ;;
     Linux)
       UNIT_DIR="$HOME/.config/systemd/user"
@@ -103,9 +111,13 @@ Environment=LLM_SANITIZER_HOME=$DATA_DIR
 [Install]
 WantedBy=default.target
 EOF
-      systemctl --user daemon-reload
-      systemctl --user enable --now llm-sanitizer
-      echo "[llm-sanitizer] 已安装 systemd 用户服务:$UNIT"
+      if [ -z "${LLM_SANITIZER_DRY_RUN:-}" ]; then
+        systemctl --user daemon-reload
+        systemctl --user enable --now llm-sanitizer
+        echo "[llm-sanitizer] 已安装 systemd 用户服务:$UNIT"
+      else
+        echo "[llm-sanitizer] DRY-RUN:已生成 $UNIT(未启用)"
+      fi
       ;;
     *)
       echo "[llm-sanitizer] 不支持的系统:$(uname -s)" >&2
