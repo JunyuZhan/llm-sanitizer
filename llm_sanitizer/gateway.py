@@ -410,4 +410,6 @@ class GatewayHandler(BaseHTTPRequestHandler):
 
 
 def create_gateway_server(port=None):
-    return ThreadingHTTPServer((config.host(), port or config.gateway_port()), GatewayHandler)
+    return ThreadingHTTPServer(
+        (config.host(), port if port is not None else config.gateway_port()), GatewayHandler
+    )

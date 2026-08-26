@@ -146,4 +146,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
 
 def create_dashboard_server(port=None):
-    return ThreadingHTTPServer((config.host(), port or config.dashboard_port()), DashboardHandler)
+    return ThreadingHTTPServer(
+        (config.host(), port if port is not None else config.dashboard_port()), DashboardHandler
+    )
