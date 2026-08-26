@@ -9,7 +9,7 @@ Four extension points, from easiest to most involved. [中文版](extending.zh-C
 | Level | What you extend | Effort | Where |
 |---|---|---|---|
 | 1 | Custom rules (new sensitive categories) | Low | one regex + one test file |
-| 2 | Custom word lists (names, aliases, orgs) | Low | config / word-list file (v0.2) |
+| 2 | Custom word lists (names, aliases, orgs) | Low | `wordlist.txt` / console (done) |
 | 3 | New agent / new protocol | Medium | adapter + registry entry (see below) |
 | 4 | New document format handler (docx/xlsx/pdf) | Medium | format handler module (v0.2) |
 

@@ -45,6 +45,26 @@ class TestCLI(unittest.TestCase):
                 restored = f.read()
             self.assertEqual(restored, "原告张三,电话13912345678\n")
 
+    def test_mask_with_wordlist(self):
+        """v0.2:CLI mask --wordlist 生效(词表命中 + 还原)。"""
+        with tempfile.TemporaryDirectory() as d:
+            src = os.path.join(d, "in.txt")
+            masked_path = os.path.join(d, "masked.txt")
+            map_path = os.path.join(d, "map.json")
+            wl = os.path.join(d, "wl.txt")
+            with open(src, "w", encoding="utf-8") as f:
+                f.write("张三丰 电话13912345678\n")
+            with open(wl, "w", encoding="utf-8") as f:
+                f.write("张三丰|姓名\n")
+
+            r = self._run("mask", src, "-o", masked_path, "--map", map_path, "--wordlist", wl)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            with open(masked_path, encoding="utf-8") as f:
+                masked = f.read()
+            self.assertIn("[姓名_1]", masked)
+            self.assertNotIn("张三丰", masked)
+            self.assertIn("[手机号_1]", masked)
+
     def test_status_runs(self):
         r = self._run("status")
         self.assertEqual(r.returncode, 0, r.stderr)

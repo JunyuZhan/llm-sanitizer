@@ -12,7 +12,7 @@
 
 ## Project Status
 
-> **v0.1 released.** Local gateway, 15 Chinese-sensitive-data categories, live dashboard/console, CLI, auto-start installer, test suite (29 cases) and CI are all in place — `pip install llm-sanitizer-gateway` to get started. v0.2 plans: WebSocket proxy, docx/xlsx/pdf format-preserving masking, custom word lists, one-click agent integration. Contributions welcome.
+> **v0.1 released · v0.2 in progress.** Local gateway, 15 Chinese-sensitive-data categories, live console, CLI, auto-start installer and CI are all in place — `pip install llm-sanitizer-gateway` to get started. v0.2 has landed **WebSocket transparent proxy** and **custom word lists**; format-preserving masking, one-click integration and more are in progress. Contributions welcome.
 
 ## Why
 
@@ -104,7 +104,7 @@ Full walkthrough, configuration reference, upgrade & uninstall: [Quick start](do
 
 > Full numbered list in [PRD §9](docs/需求文档.md#9-已知限制与风险实测发现如实记录) (R1–R9); the most user-facing items are listed here without re-numbering.
 
-- **Transport coverage**: clients that use WebSocket or other non-HTTP channels are not intercepted in v0.1. Verify your client uses HTTP/SSE.
+- **WebSocket supported (v0.2)**: the gateway ships a transparent WebSocket proxy — text messages are masked/restored, binary and control frames pass through. Verify with a test message after integrating.
 - **Recognition coverage**: regex rules cannot catch every name, alias, or abbreviation. High-sensitivity cases need custom word lists (v0.2) or local models.
 - **Masking ≠ anonymization**: placeholders prevent plaintext leakage, but context ("defendant, male, 30, Shenzhen") can still re-identify individuals.
 - **Restore is exact-match only**: if the model rewrites a placeholder, it cannot be restored.
@@ -116,7 +116,7 @@ Read [SECURITY.md](docs/SECURITY.md) before trusting this tool. **Core fact:** i
 | Version | Scope |
 |---|---|
 | **v0.1** (current) | HTTP gateway, Chinese rules, live dashboard, installer, docs, e2e tests; PyPI release |
-| **v0.2** | WebSocket proxy, docx/xlsx/pdf format-preserving masking, custom word lists, Windows |
+| **v0.2 (in progress)** | ✅ WebSocket proxy, ✅ custom word lists; next: docx/xlsx/pdf format-preserving masking, Windows, one-click integration (FR-12), drag-drop file masking (FR-14), desktop shell |
 | **v0.3** | multilingual rules (EN/JP), organization policy & audit export, rule marketplace |
 
 ## Contributing

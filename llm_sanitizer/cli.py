@@ -97,9 +97,15 @@ def cmd_status(args):
 
 
 def cmd_mask(args):
+    from llm_sanitizer.masker import Masker, load_wordlist_file
+
     src = Path(args.file)
     text = src.read_text(encoding="utf-8")
-    masked, m = mask_text(text)
+    if args.wordlist:
+        masker = Masker(wordlist=load_wordlist_file(args.wordlist))
+        masked, m = mask_text(text, masker)
+    else:
+        masked, m = mask_text(text)
     dest = Path(args.output) if args.output else src.with_name("masked_" + src.name)
     dest.write_text(masked, encoding="utf-8")
     if args.map:
@@ -152,6 +158,7 @@ def main():
     p_mask.add_argument("file")
     p_mask.add_argument("-o", "--output")
     p_mask.add_argument("--map")
+    p_mask.add_argument("--wordlist", help="自定义敏感词表(每行一词,可 `词|类别`);默认读数据目录 wordlist.txt")
     p_restore = sub.add_parser("restore", help="单文件还原")
     p_restore.add_argument("file")
     p_restore.add_argument("--map", required=True)

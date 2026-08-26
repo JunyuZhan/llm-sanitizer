@@ -14,6 +14,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 
 from . import config
+from . import websocket as ws
 from .events import EventStore
 from .masker import Masker, mask_text, restore_text
 
@@ -47,7 +48,10 @@ def init_state(upstream=None, upstream_key=None, map_path=None, events_path=None
         str(map_path or config.map_path()),
         str(events_path or config.events_path()),
     )
-    st.masker = Masker(disabled_categories=config.disabled_categories())  # FR-15
+    st.masker = Masker(
+        disabled_categories=config.disabled_categories(),  # FR-15
+        wordlist=config.load_wordlist_file(),              # v0.2 自定义词表
+    )
     st.masker.load_mapping(_load_json(st.map_path))
     state = st  # 修复:必须赋给全局,否则请求处理时 state 为 None
     return st
@@ -286,6 +290,10 @@ class GatewayHandler(BaseHTTPRequestHandler):
             sys.stderr.write("[gateway] " + fmt % args + "\n")
 
     def do_GET(self):
+        # WebSocket 升级请求 → 透明代理(R1 缺口修复)
+        if (self.headers.get("Upgrade") or "").lower() == "websocket":
+            self._handle_ws()
+            return
         self._route(b"")
 
     def do_POST(self):
@@ -474,6 +482,67 @@ class GatewayHandler(BaseHTTPRequestHandler):
                                 fn["arguments"] = _restore_json_string(fn["arguments"])
         else:
             obj.update(restore_json(obj))  # D2 修复:使用还原后的返回值
+
+    def _handle_ws(self):
+        """WebSocket 透明代理:校验(FR-8) → 回 101 → 双向转发(去程脱敏/回程还原)。"""
+        host = (self.headers.get("Host") or "").split(":")[0].lower()
+        if host not in ("127.0.0.1", "localhost"):
+            self._json_error(403, "forbidden host")
+            return
+        origin = self.headers.get("Origin") or ""
+        if origin:
+            o_host = origin.split("//")[-1].split("/")[0].split(":")[0].lower()
+            if o_host not in ("127.0.0.1", "localhost"):
+                self._json_error(403, "forbidden origin")
+                return
+        client_key = self.headers.get("Sec-WebSocket-Key") or ""
+        if not client_key:
+            self._json_error(400, "missing Sec-WebSocket-Key")
+            return
+        log = (
+            lambda m: state.verbose
+            and sys.stderr.write(f"[ws] {time.strftime('%H:%M:%S')} {m}\n")
+        )
+        try:
+            target = forward_path(state.upstream, self.path)
+            ws.run_ws_proxy(
+                self.connection,
+                client_key,
+                target,
+                state.upstream_key,
+                mask_fn=self._ws_mask,
+                restore_fn=self._ws_restore,
+                log=log,
+            )
+        except Exception as e:
+            log(f"proxy failed: {e}")
+            try:
+                self._json_error(502, f"ws proxy error: {e}")
+            except Exception:
+                pass
+
+    def _ws_mask(self, text):
+        """WebSocket 文本消息去程脱敏 + 事件记录。"""
+        with state.lock:
+            before = set(state.masker.mapping)
+            masked, _ = mask_text(text, state.masker)
+            new_tokens = set(state.masker.mapping) - before
+            if new_tokens:
+                _save_json(state.map_path, state.masker.mapping)
+        for t in new_tokens:
+            state.events.add("mask", category=token_category(t), token=t)
+        if new_tokens:
+            state.events.add(
+                "request",
+                method="WS",
+                path=self.path.split("?")[0],
+                new_findings=len(new_tokens),
+                total=len(state.masker.mapping),
+            )
+        return masked
+
+    def _ws_restore(self, text):
+        return restore_text(text, _snapshot_mapping())
 
     def _json_error(self, status, message):
         body = json.dumps({"error": {"message": message}}, ensure_ascii=False).encode()

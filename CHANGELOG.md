@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] — 0.2.0
+
+### Added
+
+- **WebSocket transparent proxy** (`llm_sanitizer/websocket.py`): frame codec (masking, extended
+  lengths, control frames, fragmentation), upstream handshake over ws/wss/http/https, bidirectional
+  relay with text masking/restoration; binary frames (e.g. audio) and ping/pong/close pass through.
+  Closes the R1 transport-coverage gap.
+- **Custom sensitive word lists**: `~/.llm-sanitizer/wordlist.txt` (one word per line, optional
+  `词|类别`); entries take priority over built-in rules, independent-word matching avoids substring
+  false hits; maintained via CLI `mask --wordlist`, console panel and `POST /api/wordlist`.
+- Console: custom word list panel (view/edit, 600-perm persistence, token-protected).
+- Tests: +15 cases (WS proxy e2e: placeholders-only upstream, restored client text, ping/pong,
+  Host 403, dashboard events; word list: hits, priority, boundary, toggle, parse, round-trip,
+  CLI --wordlist, console API) — 44 total, all pass.
+
 ## [0.1.0] - 2026-08-27
 
 ### Added

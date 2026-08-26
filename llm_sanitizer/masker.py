@@ -305,6 +305,66 @@ RULES = [    (_find_id18, "身份证号"),
 # 全部类别(按首次出现顺序去重),供类别开关/配置使用
 ALL_CATEGORIES = list(dict.fromkeys(cat for _, cat in RULES))
 
+# ---------------------------------------------------------------------------
+# 自定义敏感词表(v0.2):用户补充正则抓不到的姓名/机构简称/别名等。
+# 词表条目优先于内置规则;格式:每行 `词` 或 `词|类别`;# 注释与空行忽略。
+# ---------------------------------------------------------------------------
+DEFAULT_WORDLIST_CATEGORY = "自定义词表"
+_WORD_TAIL = re.compile(r"[\u4e00-\u9fa5A-Za-z0-9]")
+
+
+def parse_wordlist(text):
+    """解析词表文本 → [(word, category)]。重复词保留首个。"""
+    out = []
+    seen = set()
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "|" in line:
+            word, _, cat = line.partition("|")
+            word, cat = word.strip(), cat.strip() or DEFAULT_WORDLIST_CATEGORY
+        else:
+            word, cat = line, DEFAULT_WORDLIST_CATEGORY
+        if not word or word in seen:
+            continue
+        seen.add(word)
+        out.append((word, cat))
+    return out
+
+
+def load_wordlist_file(path):
+    """读取词表文件;不存在或异常时返回空词表(不崩溃)。"""
+    try:
+        with open(path, encoding="utf-8") as f:
+            return parse_wordlist(f.read())
+    except Exception:
+        return []
+
+
+def _word_boundary_ok(text, start, end):
+    """词首前、词尾后不是 CJK/字母/数字(词作为独立 token 出现,防子串误伤)。"""
+    if start > 0 and _WORD_TAIL.match(text[start - 1]):
+        return False
+    if end < len(text) and _WORD_TAIL.match(text[end]):
+        return False
+    return True
+
+
+def _find_wordlist_hits(text, wordlist):
+    """词表精确匹配(独立词),返回 [(start, end, category, word)]。"""
+    hits = []
+    for word, category in wordlist:
+        idx = 0
+        while True:
+            i = text.find(word, idx)
+            if i < 0:
+                break
+            if _word_boundary_ok(text, i, i + len(word)):
+                hits.append((i, i + len(word), category, word))
+            idx = i + len(word)
+    return hits
+
 
 # ---------------------------------------------------------------------------
 # 引擎
@@ -312,11 +372,12 @@ ALL_CATEGORIES = list(dict.fromkeys(cat for _, cat in RULES))
 class Masker:
     """双向映射 + 类别计数器 + 类别开关。"""
 
-    def __init__(self, disabled_categories=None):
+    def __init__(self, disabled_categories=None, wordlist=None):
         self.reverse: dict[str, str] = {}          # 原文 -> token
         self.mapping: dict[str, str] = {}          # token -> 原文
         self.counters: dict[str, int] = defaultdict(int)  # 类别 -> 序号
         self.disabled = set(disabled_categories or ())
+        self.wordlist: list = wordlist or []       # [(word, category)](v0.2 自定义词表)
 
     # -- 映射 ------------------------------------------------------------
     def token_for(self, category: str, text: str) -> str:
@@ -330,29 +391,38 @@ class Masker:
 
     # -- 脱敏 ------------------------------------------------------------
     def mask(self, text: str) -> str:
-        """按规则优先级收集匹配,去重叠后统一替换为占位符。"""
-        hits = []  # (start, end, category, matched)
+        """按规则优先级收集匹配,去重叠后统一替换为占位符。
+
+        重叠决策:用户词表条目优先于内置规则(词表挤掉与其冲突的规则命中)。
+        """
+        hits = []  # (start, end, category, matched, is_wordlist)
+        # 词表优先:用户自定义词 > 内置规则(重叠时词表胜)
+        for start, end, category, matched in _find_wordlist_hits(text, self.wordlist):
+            if category not in self.disabled and end > start:
+                hits.append((start, end, category, matched, True))
         for fn, category in RULES:
             if category in self.disabled:
                 continue
             for start, end, matched in _iter_matches((fn, category), text):
                 if end <= start:
                     continue
-                hits.append((start, end, category, matched))
-        # 按位置排序;重叠时保留先收集的(规则优先级)
+                hits.append((start, end, category, matched, False))
+        # 按位置排序;重叠时词表命中挤掉规则命中,规则之间先收集者胜
         hits.sort(key=lambda h: (h[0], h[1]))
         accepted = []
-        last_end = -1
         for h in hits:
-            if h[0] >= last_end:
+            conflicts = [a for a in accepted if h[0] < a[1] and h[1] > a[0]]
+            if not conflicts:
                 accepted.append(h)
-                last_end = h[1]
+                continue
+            if h[4] and any(not a[4] for a in conflicts):
+                accepted = [a for a in accepted if not (h[0] < a[1] and h[1] > a[0])]
+                accepted.append(h)
+        accepted.sort(key=lambda h: (h[0], h[1]))
         # 从后往前替换,保持位置有效
-        out = list(text)
-        # 直接构建新串
         parts = []
         cursor = 0
-        for start, end, category, matched in accepted:
+        for start, end, category, matched, _ in accepted:
             if start < cursor:
                 continue
             parts.append(text[cursor:start])

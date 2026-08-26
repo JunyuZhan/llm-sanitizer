@@ -1,13 +1,17 @@
-"""实时看板 → 控制台:统计、接入引导(FR-11)、设置(FR-13/FR-15)。
+"""实时看板 → 控制台:统计、接入引导(FR-11)、设置(FR-13/FR-15)、词表(v0.2)。
 
 - GET  /                单页控制台(原生 JS,2 秒轮询统计)
 - GET  /api/status      统计(持久化 per-category 计数器 + 最近事件)
 - GET  /api/agents      本机 Agent 检测(只读,FR-11)
 - GET  /api/settings    读取设置(不含密钥明文)
 - POST /api/settings    保存设置(Origin 白名单 + X-Local-Token,FR-8)
+- GET  /api/wordlist    读取自定义敏感词表(v0.2)
+- POST /api/wordlist    整体覆盖保存词表(同上保护)
 """
 
 import json
+import os
+import tempfile
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
@@ -136,6 +140,19 @@ model_provider = "llm-sanitizer"</pre>
     </form>
   </div>
 
+  <div class="panel" id="wordlist">
+    <h3>自定义敏感词表</h3>
+    <p style="font-size:13px;color:#475467">正则抓不到的姓名 / 机构简称 / 别名补在这里,每行一个词;
+      格式 <code class="mono">词</code> 或 <code class="mono">词|类别</code>(默认类别「自定义词表」)。
+      词表<b>优先于</b>内置规则;保存后重启网关生效。</p>
+    <textarea id="wl" rows="7" style="width:100%;font-family:monospace;font-size:13px"
+      placeholder="# 示例:&#10;张三丰|姓名&#10;某某律师事务所|公司名称"></textarea>
+    <div style="margin-top:10px">
+      <button type="button" class="btn btn-p" onclick="saveWordlist()">保存词表</button>
+      <span class="ok" id="wlsaved"></span>
+    </div>
+  </div>
+
   <h2>按类别分布</h2><div id="bars"></div>
   <h2 id="events">最近脱敏事件(不含明文)</h2>
   <table><thead><tr><th>时间</th><th>类别</th><th>占位符</th><th>请求</th></tr></thead>
@@ -201,6 +218,22 @@ function loadSettings() {
   }).catch(()=>{});
 }
 
+function loadWordlist() {
+  fetch('/api/wordlist').then(r=>r.json()).then(d=>{
+    document.getElementById('wl').value = d.text || '';
+  }).catch(()=>{});
+}
+
+function saveWordlist() {
+  fetch('/api/wordlist', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','X-Local-Token':'local'},
+    body: JSON.stringify({text: document.getElementById('wl').value})
+  }).then(r=>r.json()).then(d=>{
+    document.getElementById('wlsaved').textContent = d.ok ? '已保存(重启后生效)' : ('失败:' + (d.error||''));
+  }).catch(()=>{ document.getElementById('wlsaved').textContent = '保存失败'; });
+}
+
 document.getElementById('form').addEventListener('submit', e=>{
   e.preventDefault();
   fetch('/api/settings', {
@@ -221,6 +254,7 @@ setInterval(refresh, 2000);
 refresh();
 loadAgents();
 loadSettings();
+loadWordlist();
 </script>
 </body>
 </html>
@@ -274,6 +308,19 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 "key_set": bool(s.get("key")),
                 "categories": s.get("categories"),
             })
+        elif path == "/api/wordlist":
+            from .masker import load_wordlist_file as _lwf
+
+            text = ""
+            try:
+                text = config.wordlist_path().read_text(encoding="utf-8")
+            except Exception:
+                pass
+            self._json(200, {
+                "text": text,
+                "count": len(_lwf(config.wordlist_path())),
+                "path": str(config.wordlist_path()),
+            })
         else:
             self._send(404, b"not found", "text/plain")
 
@@ -285,7 +332,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self._json(403, {"error": "forbidden origin"})
             return
         path = urlparse(self.path).path
-        if path != "/api/settings":
+        if path not in ("/api/settings", "/api/wordlist"):
             self._json(404, {"error": "not found"})
             return
         # 写接口保护(FR-8):要求本地自定义头,浏览器跨站无法携带
@@ -298,6 +345,28 @@ class DashboardHandler(BaseHTTPRequestHandler):
             data = json.loads(raw or b"{}")
         except Exception:
             self._json(400, {"error": "bad json"})
+            return
+        if path == "/api/wordlist":
+            text = str(data.get("text") or "")
+            try:
+                p = str(config.wordlist_path())
+                os.makedirs(os.path.dirname(p) or ".", exist_ok=True)
+                fd, tmp = tempfile.mkstemp(dir=os.path.dirname(p) or ".", prefix=".wl-")
+                try:
+                    with os.fdopen(fd, "w", encoding="utf-8") as f:
+                        f.write(text)
+                    os.chmod(tmp, 0o600)
+                    os.replace(tmp, p)
+                finally:
+                    if os.path.exists(tmp):
+                        try:
+                            os.unlink(tmp)
+                        except OSError:
+                            pass
+            except Exception as e:
+                self._json(500, {"error": f"save failed: {e}"})
+                return
+            self._json(200, {"ok": True})
             return
         settings = config.load_settings()
         if data.get("upstream"):

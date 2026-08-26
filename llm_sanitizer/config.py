@@ -30,6 +30,18 @@ def settings_path() -> Path:
     return data_dir() / "settings.json"
 
 
+def wordlist_path() -> Path:
+    """自定义敏感词表(v0.2):每行一个词,可 `词|类别`。"""
+    return data_dir() / "wordlist.txt"
+
+
+def load_wordlist_file() -> list:
+    """读取用户词表;不存在/异常返回空(不崩溃)。"""
+    from .masker import load_wordlist_file as _load
+
+    return _load(wordlist_path())
+
+
 def load_settings() -> dict:
     try:
         with open(settings_path(), encoding="utf-8") as f:

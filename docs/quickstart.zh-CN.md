@@ -86,7 +86,7 @@ Codex / WorkBuddy / OpenClaw 的分步配置见 [Agent 接入指南](AGENTS.md)�
 | 现象 | 可能原因 / 处理 |
 |---|---|
 | `No module named llm_sanitizer` | 未在仓库根目录运行,或环境变量 `PYTHONPATH` 缺失——用 pip 安装或从仓库根运行 |
-| 看板没有事件 | Agent 实际没有走网关:检查 base_url;部分桌面 App 走 WebSocket 绕过 HTTP(已知限制,见 [SECURITY](SECURITY.zh-CN.md)) |
+| 看板没有事件 | Agent 实际没有走网关:检查 base_url;仍不行,发一条含测试隐私的消息确认走的是 HTTP 或 WebSocket(v0.2 起两者均可拦截) |
 | `upstream unreachable` | `LLM_SANITIZER_UPSTREAM` 配错或网络不通 |
 | 上游返回 `401` | `LLM_SANITIZER_KEY` 缺失或错误;或 Agent 自带的密钥未被转发 |
 | 响应里残留 `[地址_1]` 这类占位符 | 工具调用参数还原是 v0.1 已知缺口(见[开发文档](../docs/开发文档.md)) |

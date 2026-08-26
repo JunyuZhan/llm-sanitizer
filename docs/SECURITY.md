@@ -34,8 +34,8 @@
 
 > Numbering follows [PRD §9](../docs/需求文档.md#9-已知限制与风险实测发现如实记录); not re-numbered here.
 
-- **Transport coverage.** Clients using WebSocket or other non-HTTP channels cannot be intercepted in v0.1. Before integrating, confirm your client uses HTTP/SSE (e.g. Codex CLI with `wire_api = "responses"` and WebSocket disabled).
-- **Recognition coverage.** Regex rules cannot catch every name, alias, or abbreviation. For high-sensitivity scenarios, add custom word lists (v0.2) or use a local/controlled environment.
+- **Transport coverage (fixed in v0.2).** The gateway now ships a WebSocket transparent proxy that intercepts WebSocket clients (text messages masked/restored; binary frames and control frames passed through). Still verify with a test message after integrating (see [AGENTS.md](AGENTS.md)).
+- **Recognition coverage (mitigated in v0.2).** Regex rules cannot catch every name, alias, or abbreviation. Since v0.2 you can maintain a custom word list (`~/.llm-sanitizer/wordlist.txt`; entries take priority over built-in rules); for the most sensitive cases consider a local/controlled environment.
 - **Masking ≠ anonymization.** Placeholders prevent plaintext leakage, but context ("defendant, male, 30, Shenzhen") can still re-identify individuals.
 - **Restore boundary.** Restore is exact-match only; placeholders rewritten by the model cannot be restored.
 

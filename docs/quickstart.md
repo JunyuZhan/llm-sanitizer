@@ -86,8 +86,7 @@ For lawyers: you can pre-mask a file locally, then hand the masked version to an
 | Symptom | Likely cause / fix |
 |---|---|
 | `No module named llm_sanitizer` | Not running from the repo root or missing `PYTHONPATH` — use pip install or run from the repo root |
-| Dashboard shows no events | Agent is not actually routing through the gateway. Check the agent's base URL; some desktop apps use WebSocket and bypass HTTP (see [SECURITY](SECURITY.md)) |
-| Dashboard shows no events | Agent is not actually routing through the gateway. Check the agent's base URL; some desktop apps use WebSocket and bypass HTTP (known limit R1) |
+| Dashboard shows no events | Agent is not actually routing through the gateway. Check the agent's base URL; if still nothing, send a test message and confirm the client uses HTTP or WebSocket (both are intercepted since v0.2) |
 | `upstream unreachable` | Wrong `LLM_SANITIZER_UPSTREAM` or network blocked |
 | `401` from upstream | `LLM_SANITIZER_KEY` missing or invalid; or the agent's own key isn't being forwarded |
 | Response contains placeholders like `[地址_1]` | Tool-call arguments restore is a known gap in v0.1 (see [开发文档](../docs/开发文档.md)) |

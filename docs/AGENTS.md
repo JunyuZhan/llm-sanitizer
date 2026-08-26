@@ -35,7 +35,7 @@ model_provider = "llm-sanitizer"
 > 若希望网关统一管理密钥,可在网关环境变量配置 `LLM_SANITIZER_KEY`,此时 Agent 端密钥可任意填写。
 
 **常见坑**:
-- Codex 必须使用 `wire_api = "responses"` 且**未启用 WebSocket**,否则流量不走 HTTP 网关(见已知限制)。
+- Codex 使用 `wire_api = "responses"`(HTTP/SSE)或 WebSocket 均可;v0.2 起网关同时支持 HTTP 与 WebSocket 透明代理。
 - 桌面版 Codex 的对话消息可能不经 HTTP 网关(取决于版本与传输方式);接入后务必用测试消息验证。
 
 ## 2. WorkBuddy
@@ -70,7 +70,7 @@ WorkBuddy 支持 OpenAI 兼容的自定义模型:
 
 ## 5. 已知限制
 
-- 走 WebSocket 通道的客户端在 v0.1 无法拦截(见 [SECURITY 文档](SECURITY.zh-CN.md))。
+- v0.2 起网关内置 WebSocket 透明代理,可拦截走 WebSocket 的客户端(文本脱敏/还原)。接入后务必用测试消息验证。
 - 桌面版 Codex 的对话消息可能不经 HTTP 网关(取决于版本与传输方式);接入后请务必用测试消息验证。
 - 工具调用参数中的占位符残留属 v0.1 已知缺口(风险 R7,见[需求文档](需求文档.md#9-已知限制与风险实测发现如实记录))。
 

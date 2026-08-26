@@ -141,5 +141,63 @@ class TestRules(unittest.TestCase):
         self.assertEqual(m.mapping["[手机号_1]"], "13912345678")
 
 
+class TestWordlist(unittest.TestCase):
+    """v0.2:自定义敏感词表。"""
+
+    def test_wordlist_hits(self):
+        m = Masker(wordlist=[("张三丰", "姓名"), ("某某律所", "公司名称")])
+        masked, _ = mask_text("张三丰 代理 某某律所", m)
+        self.assertNotIn("张三丰", masked)
+        self.assertNotIn("某某律所", masked)
+        self.assertIn("[姓名_1]", masked)
+        self.assertIn("[公司名称_1]", masked)
+
+    def test_wordlist_priority_over_rules(self):
+        """词表独立命中,类别为词表指定,与内置规则共存不冲突。"""
+        m = Masker(wordlist=[("张三丰", "自定义词表")])
+        masked, _ = mask_text("张三丰 电话13912345678", m)
+        self.assertIn("[自定义词表_1]", masked)
+        self.assertNotIn("张三丰", masked)
+        self.assertIn("[手机号_1]", masked)  # 内置规则照常工作
+
+    def test_wordlist_no_substring_false_hit(self):
+        """词必须是独立 token:"张三"不匹配"张三丰"(防子串误伤)。"""
+        m = Masker(wordlist=[("张三", "姓名")])
+        masked, _ = mask_text("张三丰 原告", m)
+        self.assertEqual(masked, "张三丰 原告")
+        # 但完整出现时命中
+        masked2, _ = mask_text("张三 原告", m)
+        self.assertIn("[姓名_1]", masked2)
+
+    def test_wordlist_disabled_category(self):
+        m = Masker(wordlist=[("张三丰", "姓名")], disabled_categories={"姓名"})
+        masked, _ = mask_text("张三丰", m)
+        self.assertEqual(masked, "张三丰", "禁用类别后词表条目不生效")
+
+    def test_parse_wordlist(self):
+        from llm_sanitizer.masker import parse_wordlist
+
+        text = "# 注释\n张三丰\n李四|姓名\n\n某某律所|公司名称\n张三丰\n"
+        out = parse_wordlist(text)
+        self.assertEqual(out, [("张三丰", "自定义词表"), ("李四", "姓名"), ("某某律所", "公司名称")])
+
+    def test_wordlist_restore_roundtrip(self):
+        m = Masker(wordlist=[("张三丰", "姓名")])
+        sample = "张三丰 电话13912345678"
+        masked, _ = mask_text(sample, m)
+        restored = restore_text(masked, m.mapping)
+        self.assertEqual(restored, sample)
+
+    def test_load_wordlist_file(self):
+        from llm_sanitizer.masker import load_wordlist_file
+
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, "wl.txt")
+            with open(p, "w", encoding="utf-8") as f:
+                f.write("张三丰|姓名\n# 注释\n")
+            self.assertEqual(load_wordlist_file(p), [("张三丰", "姓名")])
+            self.assertEqual(load_wordlist_file(os.path.join(d, "nope.txt")), [])
+
+
 if __name__ == "__main__":
     unittest.main()

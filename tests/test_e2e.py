@@ -4,9 +4,11 @@
     python3 tests/test_e2e.py
 """
 
+import base64
 import http.client
 import json
 import os
+import socket
 import sys
 import tempfile
 import threading
@@ -19,6 +21,7 @@ sys.path.insert(0, os.path.join(ROOT, "tests"))
 import mock_upstream  # noqa: E402
 from llm_sanitizer import dashboard as db  # noqa: E402
 from llm_sanitizer import gateway as gw  # noqa: E402
+from llm_sanitizer import websocket as ws  # noqa: E402
 
 SENSITIVE = "原告张三 电话13912345678 住址:北京市朝阳区建国路88号"
 
@@ -48,14 +51,20 @@ class GatewayFixture(unittest.TestCase):
     """每个测试类独立的 mock + 网关 + 看板。"""
 
     mock_mode = "chat_json"
+    mock_factory = None  # 置为 MockWsUpstream 时走 ws:// 上游
 
     @classmethod
     def setUpClass(cls):
         cls.home = tempfile.mkdtemp(prefix="llmsan-test-")
         # 通过环境变量配置,与真实运行路径一致(gateway/dashboard 共享 config)
         os.environ["LLM_SANITIZER_HOME"] = cls.home
-        cls.mock = mock_upstream.MockUpstream(mode=cls.mock_mode).start()
-        os.environ["LLM_SANITIZER_UPSTREAM"] = f"http://127.0.0.1:{cls.mock.port}"
+        if cls.mock_factory:
+            cls.mock = cls.mock_factory().start()
+            scheme = "ws"
+        else:
+            cls.mock = mock_upstream.MockUpstream(mode=cls.mock_mode).start()
+            scheme = "http"
+        os.environ["LLM_SANITIZER_UPSTREAM"] = f"{scheme}://127.0.0.1:{cls.mock.port}"
         gw.init_state()
         cls.gs = gw.create_gateway_server(port=0)
         cls.gport = cls.gs.server_address[1]
@@ -260,6 +269,139 @@ class TestConsole(GatewayFixture):
         resp = conn.getresponse()
         conn.close()
         self.assertEqual(resp.status, 403)
+
+    def test_wordlist_get(self):
+        """v0.2:GET /api/wordlist 返回词表内容。"""
+        status, body = _get(self.dport, "/api/wordlist")
+        self.assertEqual(status, 200)
+        data = json.loads(body)
+        self.assertIn("text", data)
+        self.assertIn("count", data)
+
+    def test_wordlist_write_requires_token(self):
+        """v0.2:词表写接口无令牌返回 403。"""
+        conn = http.client.HTTPConnection("127.0.0.1", self.dport, timeout=10)
+        conn.request("POST", "/api/wordlist",
+                     body='{"text":"张三丰|姓名"}'.encode("utf-8"),
+                     headers={"Content-Type": "application/json"})
+        resp = conn.getresponse()
+        conn.close()
+        self.assertEqual(resp.status, 403)
+
+    def test_wordlist_write_ok(self):
+        """v0.2:词表写接口带令牌成功,落盘权限 600。"""
+        conn = http.client.HTTPConnection("127.0.0.1", self.dport, timeout=10)
+        conn.request("POST", "/api/wordlist",
+                     body=json.dumps({"text": "张三丰|姓名\n某某律所|公司名称\n"}).encode(),
+                     headers={"Content-Type": "application/json", "X-Local-Token": "local"})
+        resp = conn.getresponse()
+        body = resp.read()
+        conn.close()
+        self.assertEqual(resp.status, 200)
+        self.assertTrue(json.loads(body)["ok"])
+        from llm_sanitizer import config as cfg
+        p = cfg.wordlist_path()
+        self.assertEqual(os.stat(p).st_mode & 0o777, 0o600)
+        self.assertIn("张三丰", p.read_text(encoding="utf-8"))
+
+
+class TestWebSocket(GatewayFixture):
+    """v0.2:WebSocket 透明代理(R1 缺口修复)。"""
+
+    mock_factory = mock_upstream.MockWsUpstream
+
+    def _ws_connect(self, path="/v1/realtime?model=gpt-4o"):
+        """手写 WS 客户端:握手(掩码帧)并返回 (sock, reader)。"""
+        s = socket.create_connection(("127.0.0.1", self.gport), timeout=10)
+        key = base64.b64encode(os.urandom(16)).decode("ascii")
+        req = (
+            f"GET {path} HTTP/1.1\r\n"
+            f"Host: 127.0.0.1:{self.gport}\r\n"
+            "Upgrade: websocket\r\n"
+            "Connection: Upgrade\r\n"
+            f"Sec-WebSocket-Key: {key}\r\n"
+            "Sec-WebSocket-Version: 13\r\n\r\n"
+        )
+        s.sendall(req.encode("ascii"))
+        reader = ws.WsReader(s)
+        head = b""
+        while b"\r\n\r\n" not in head:
+            head += s.recv(4096)
+        status = head.decode("latin-1").split("\r\n")[0]
+        if "101" not in status:
+            s.close()
+            self.fail(f"ws handshake failed: {status}")
+        return s, ws.WsReader(s, head.split(b"\r\n\r\n", 1)[1])
+
+    def test_ws_upstream_sees_placeholders_only(self):
+        """上游只见占位符;客户端收到还原原文。"""
+        s, reader = self._ws_connect()
+        try:
+            ws.send_frame(s, ws.OP_TEXT, "原告张三 13912345678".encode("utf-8"), mask=True)
+            opcode, payload = reader.recv_message()
+            self.assertEqual(opcode, ws.OP_TEXT)
+            text = payload.decode("utf-8")
+            self.assertIn("张三", text)          # 回程还原
+            self.assertIn("13912345678", text)
+            self.assertNotIn("[姓名_1]", text)
+            raw = self.mock.bodies_text()         # 上游只应见占位符
+            self.assertNotIn("张三", raw)
+            self.assertIn("[姓名_1]", raw)
+            self.assertIn("[手机号_1]", raw)
+        finally:
+            try:
+                ws.send_frame(s, ws.OP_CLOSE, b"\x03\xe8", mask=True)
+                opcode, _ = reader.recv_message()
+                self.assertEqual(opcode, ws.OP_CLOSE)
+            except Exception:
+                pass
+            s.close()
+
+    def test_ws_ping_pong(self):
+        """控制帧透传:ping → 上游回 pong → 客户端收到。"""
+        s, reader = self._ws_connect()
+        try:
+            ws.send_frame(s, ws.OP_PING, b"hi", mask=True)
+            opcode, payload = reader.recv_message()
+            self.assertEqual(opcode, ws.OP_PONG)
+            self.assertEqual(payload, b"hi")
+        finally:
+            s.close()
+
+    def test_ws_host_validation(self):
+        """FR-8:伪造 Host 的 WS 握手返回 403。"""
+        s = socket.create_connection(("127.0.0.1", self.gport), timeout=5)
+        req = (
+            "GET /v1/realtime HTTP/1.1\r\n"
+            "Host: evil.example.com\r\n"
+            "Upgrade: websocket\r\n"
+            "Connection: Upgrade\r\n"
+            "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
+            "Sec-WebSocket-Version: 13\r\n\r\n"
+        )
+        s.sendall(req.encode("ascii"))
+        resp = b""
+        while b"\r\n\r\n" not in resp:
+            resp += s.recv(4096)
+        status = resp.decode("latin-1").split("\r\n")[0]
+        s.close()
+        self.assertIn("403", status)
+
+    def test_ws_dashboard_events(self):
+        """WS 脱敏事件进入看板(仅占位符)。"""
+        s, reader = self._ws_connect()
+        try:
+            ws.send_frame(s, ws.OP_TEXT, "原告张三 13912345678".encode("utf-8"), mask=True)
+            reader.recv_message()  # 等回复,确保事件已落盘
+        finally:
+            s.close()
+        status, body = _get(self.dport, "/api/status")
+        self.assertEqual(status, 200)
+        data = json.loads(body)
+        self.assertGreaterEqual(data["total_masked"], 2)
+        ev = json.dumps(data, ensure_ascii=False)
+        self.assertIn("[姓名_1]", ev)
+        self.assertNotIn("张三", ev)
 
 
 if __name__ == "__main__":
