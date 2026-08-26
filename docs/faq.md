@@ -27,6 +27,12 @@ The placeholder format is guessable in principle, but the model never receives t
 ### How do I know masking actually covers my documents?
 Test it: send a message with deliberately inserted sample data, then check the dashboard. For real coverage, review the [rule list](../docs/需求文档.md) and plan custom word lists (v0.2) for names/aliases the regexes can't catch (R2).
 
+### Can I choose which categories are masked?
+Yes (FR-15). Each built-in rule has a category id you can enable/disable in the console, via environment/config, or per-file with `mask --categories`. Presets: high-sensitivity (all on) / office (names, phones, email, company names, bank accounts, address) / custom. **Default is everything on.** Disabling a category means that kind of data goes to the cloud in plaintext — the UI warns you before you confirm, and the dashboard always shows "N/15 categories active".
+
+### Are API keys and passwords masked too?
+Yes — they are the highest-priority category for an LLM traffic gateway. The `密钥/令牌` rule catches common secret patterns (`sk-...`, `ghp_...`) and fields named password/token, and is **on by default**. It protects you when an agent processes a config file, `.env`, or any document that happens to contain credentials.
+
 ## Data & restore
 
 ### What is `map.json` and what happens if I lose it?

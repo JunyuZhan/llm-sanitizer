@@ -10,12 +10,12 @@ Four extension points, from easiest to most involved. [中文版](extending.zh-C
 |---|---|---|---|
 | 1 | Custom rules (new sensitive categories) | Low | one regex + one test file |
 | 2 | Custom word lists (names, aliases, orgs) | Low | config / word-list file (v0.2) |
-| 3 | New agent integration | None (config) | `docs/AGENTS.md` |
+| 3 | New agent / new protocol | Medium | adapter + registry entry (see below) |
 | 4 | New document format handler (docx/xlsx/pdf) | Medium | format handler module (v0.2) |
 
 ## 1. Add a custom rule
 
-Rules live in `masker.py` as (regex, category) pairs. The engine walks them in order; the first match wins.
+Rules live in `masker.py` as `(regex, category_id, category_label)` triples — every rule carries a **unique category id** so users can enable/disable it individually (see FR-15). The engine walks enabled rules in order; the first match wins.
 
 ```python
 # target interface (landing with v0.1)
@@ -29,11 +29,12 @@ masked, _ = mask_text("联系 021-1234-5678 协商", m)
 To add your own rule, register a regex and category:
 
 ```python
-# in masker.py, RULES list — example: 案号 "（2026）京01民初123号"
+# in masker.py, RULES list — example: 证据编号 "证1-2026-001"
 RULES.append(
     (
-        re.compile(r"（\d{4}）[京沪粤][\u4e00-\u9fa5]+\d{1,4}民初\d+号"),
-        "案号",
+        re.compile(r"证\d{1,3}-\d{4}-\d{3,5}"),
+        "evidence_no",   # unique category id (shown in dashboard & category toggle)
+        "证据编号",      # human-readable label
     )
 )
 ```
@@ -56,13 +57,34 @@ Names, aliases, and organization abbreviations that regexes can't infer will be 
 
 ## 3. Integrate a new agent
 
-No gateway changes needed. Any OpenAI-compatible client works by pointing its base URL at the gateway:
+**First, identify the protocol** — agent support is bound by protocol, not by name:
 
-```text
-base_url = http://127.0.0.1:8790/v1
-```
+- **OpenAI-compatible clients** (Codex, WorkBuddy, Cline, OpenClaw, and anything speaking Responses / Chat Completions): zero code. Point the base URL at the gateway:
 
-If the client needs a specific protocol, choose Responses API or Chat Completions (both supported). To contribute the steps for your favorite agent, open a PR adding a section to [AGENTS.md](AGENTS.md).
+  ```text
+  base_url = http://127.0.0.1:8790/v1
+  ```
+
+  To contribute the setup steps for your favorite client, open a PR adding a section to [AGENTS.md](AGENTS.md).
+
+- **Non-OpenAI protocols** (Claude Code → Anthropic Messages, Gemini CLI → Google generateContent): request structures differ (`content` is an array, `system` lives at the top level, `contents/parts` nesting) — masking by OpenAI field names would miss or break them. These need an **adapter**:
+
+  ```python
+  # target interface (adapters/base.py)
+  class Adapter:
+      def parse_request(self, raw: dict) -> Message: ...
+      def extract_text_fields(self, msg: Message) -> list[str]: ...
+      def rebuild_request(self, msg: Message, masked: list[str]) -> dict: ...
+      def restore_response(self, raw: dict) -> dict: ...
+  ```
+
+  Contribution checklist for a new adapter:
+  1. implement `adapters/<name>.py` against the interface above
+  2. register it in `adapters/registry.py` (route by path / protocol header)
+  3. tests: a fixture request with known sensitive values, asserting the upstream receives placeholders only and the client receives restored text
+  4. add a row to the protocol support matrix in [开发文档 §8.1](../docs/开发文档.md#81-新-agent-接入协议适配层adr-13)
+
+The core engine stays protocol-agnostic — a new agent is a registry entry plus, at most, one adapter.
 
 ## 4. Document format handlers (v0.2)
 

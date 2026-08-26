@@ -10,12 +10,12 @@
 |---|---|---|---|
 | 1 | 自定义规则(新的敏感类别) | 低 | 一条正则 + 一个测试文件 |
 | 2 | 自定义词表(姓名、别名、机构) | 低 | 配置文件 / 词表文件(v0.2) |
-| 3 | 接入新 Agent | 无(纯配置) | `docs/AGENTS.md` |
+| 3 | **新 Agent / 新协议** | 中 | 适配器 + 注册表条目(见下) |
 | 4 | 新文档格式处理器(docx/xlsx/pdf) | 中 | 格式处理器模块(v0.2) |
 
 ## 1. 添加自定义规则
 
-规则是 (正则, 类别) 对,定义在 `masker.py` 中。引擎按顺序匹配,先命中者胜。
+规则是 `(正则, 类别id, 类别名)` 三元组,定义在 `masker.py` 中——**每条规则携带唯一类别 id**,用户可单独启用/停用(见 FR-15)。引擎按顺序只匹配启用的规则,先命中者胜。
 
 ```python
 # 目标接口(v0.1 落地)
@@ -29,11 +29,12 @@ masked, _ = mask_text("联系 021-1234-5678 协商", m)
 添加自己的规则,注册一条正则与类别即可:
 
 ```python
-# 在 masker.py 的 RULES 列表中追加——示例:案号 "（2026）京01民初123号"
+# 在 masker.py 的 RULES 列表中追加——示例:证据编号 "证1-2026-001"(案号已是内置类别)
 RULES.append(
     (
-        re.compile(r"（\d{4}）[京沪粤][\u4e00-\u9fa5]+\d{1,4}民初\d+号"),
-        "案号",
+        re.compile(r"证\d{1,3}-\d{4}-\d{3,5}"),
+        "evidence_no",   # 唯一类别 id(看板与类别开关中展示)
+        "证据编号",      # 人类可读的类别名
     )
 )
 ```
@@ -56,13 +57,34 @@ assert "（2026）京01民初123号" not in "...认为..."  # 占位符文本保
 
 ## 3. 接入新 Agent
 
-网关无需改动。任意 OpenAI 兼容客户端,把 base URL 指向网关即可:
+**先判断协议**——Agent 支持由协议绑定,而非"名字":
 
-```text
-base_url = http://127.0.0.1:8790/v1
-```
+- **OpenAI 兼容客户端**(Codex、WorkBuddy、Cline、OpenClaw 及任意走 Responses / Chat Completions 的工具):零代码。把 base URL 指向网关:
 
-客户端若需指定协议,选 Responses API 或 Chat Completions(均支持)。想贡献某个 Agent 的接入步骤,在 [AGENTS.md](AGENTS.md) 加一节并发 PR。
+  ```text
+  base_url = http://127.0.0.1:8790/v1
+  ```
+
+  想贡献某客户端的接入步骤,在 [AGENTS.md](AGENTS.md) 加一节并发 PR。
+
+- **非 OpenAI 协议**(Claude Code → Anthropic Messages、Gemini CLI → Google generateContent):请求结构完全不同(`content` 是数组、`system` 在顶层、`contents/parts` 嵌套)——按 OpenAI 字段名脱敏会漏检或失败,需要**适配器**:
+
+  ```python
+  # 目标接口(adapters/base.py)
+  class Adapter:
+      def parse_request(self, raw: dict) -> Message: ...
+      def extract_text_fields(self, msg: Message) -> list[str]: ...
+      def rebuild_request(self, msg: Message, masked: list[str]) -> dict: ...
+      def restore_response(self, raw: dict) -> dict: ...
+  ```
+
+  新适配器贡献清单:
+  1. 按上述接口实现 `adapters/<name>.py`;
+  2. 在 `adapters/registry.py` 注册(按路径 / 协议头路由);
+  3. 测试:一个含已知敏感值的样例请求,断言上游只收到占位符、客户端收到还原文本;
+  4. 在[开发文档 §8.1](../docs/开发文档.md#81-新-agent-接入协议适配层adr-13) 的协议支持矩阵补一行。
+
+核心引擎保持协议无关——**新增 Agent = 注册表条目 + 至多一个适配器**。
 
 ## 4. 文档格式处理器(v0.2)
 
