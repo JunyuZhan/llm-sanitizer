@@ -15,7 +15,7 @@ Get from zero to "my agent is masked" in about five minutes.
 Two ways. **Once the PyPI package is published (part of v0.1), use pip:**
 
 ```bash
-pip install llm-sanitizer
+pip install llmsanitize
 llm-sanitizer start
 ```
 
@@ -96,12 +96,24 @@ For lawyers: you can pre-mask a file locally, then hand the masked version to an
 
 ## 8. Upgrade & uninstall
 
-```bash
-# Upgrade (source install)
-cd llm-sanitizer && git pull
+**Upgrade (pip install, recommended):**
 
-# Uninstall (removes services, config, and data)
-./install.sh --uninstall      # or: python3 -m llm_sanitizer install --uninstall
+```bash
+pip install --upgrade llmsanitize
+# if auto-start is installed, restart the service to pick up the new version:
+./install.sh --uninstall && ./install.sh
+```
+
+**Upgrade (source install):** `cd llm-sanitizer && git pull`, then restart the auto-start service the same way.
+
+**Check for updates:** `llm-sanitizer upgrade` queries PyPI and prints upgrade instructions; `start` also checks in the background.
+
+> **Data compatibility:** upgrading never loses mappings or stats — the `map.json` token format is stable (ADR-2); old mappings still restore after upgrade.
+
+**Uninstall (removes services, config, and data):**
+
+```bash
+./install.sh --uninstall      # or: llm-sanitizer install --uninstall
 rm -rf ~/.llm-sanitizer       # mapping + events — treat map.json as sensitive data!
 ```
 

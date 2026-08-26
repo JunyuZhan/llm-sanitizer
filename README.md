@@ -42,7 +42,7 @@ Agent ← [local gateway: restore] ← cloud
 
 ```bash
 # Preferred (once published):
-pip install llm-sanitizer
+pip install llmsanitize
 llm-sanitizer start
 
 # Source mode (target state, lands with v0.1):

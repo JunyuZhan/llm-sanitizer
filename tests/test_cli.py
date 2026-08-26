@@ -50,6 +50,19 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("上游", r.stdout)
 
+    def test_version_compare(self):
+        from llm_sanitizer.cli import _version_tuple
+
+        self.assertGreater(_version_tuple("1.2.3"), _version_tuple("1.2.2"))
+        self.assertGreater(_version_tuple("1.10.0"), _version_tuple("1.9.9"))
+        self.assertEqual(_version_tuple("1.2.3"), _version_tuple("1.2.3"))
+        self.assertLess(_version_tuple("0.1.0"), _version_tuple("0.1.1"))
+
+    def test_upgrade_cmd(self):
+        r = self._run("upgrade")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("pip install --upgrade", r.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

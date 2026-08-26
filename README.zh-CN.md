@@ -42,7 +42,7 @@ Agent ← [本地网关:还原] ← 云端
 
 ```bash
 # 首选(发布后):
-pip install llm-sanitizer
+pip install llmsanitize
 llm-sanitizer start
 
 # 源码方式(目标态,随 v0.1 落地):

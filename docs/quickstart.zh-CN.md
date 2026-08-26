@@ -15,7 +15,7 @@
 两种方式。**PyPI 包发布后(属于 v0.1 里程碑),优先用 pip:**
 
 ```bash
-pip install llm-sanitizer
+pip install llmsanitize
 llm-sanitizer start
 ```
 
@@ -96,12 +96,24 @@ Codex / WorkBuddy / OpenClaw 的分步配置见 [Agent 接入指南](AGENTS.md)�
 
 ## 8. 升级与卸载
 
-```bash
-# 升级(源码安装)
-cd llm-sanitizer && git pull
+**升级(pip 安装,推荐)**:
 
-# 卸载(停服务、删配置与数据)
-./install.sh --uninstall      # 或:python3 -m llm_sanitizer install --uninstall
+```bash
+pip install --upgrade llmsanitize
+# 若已安装开机自启,重启服务使新版本生效:
+./install.sh --uninstall && ./install.sh
+```
+
+**升级(源码安装)**:`cd llm-sanitizer && git pull` 后同样重启自启服务。
+
+**检查更新**:`llm-sanitizer upgrade` 会查询 PyPI 最新版并给出升级指引;`start` 启动时也会在后台检查并提示。
+
+> **数据兼容**:升级不会丢失脱敏映射与统计——`map.json` 的 token 格式稳定(ADR-2),旧映射升级后仍可还原。
+
+**卸载(停服务、删配置与数据)**:
+
+```bash
+./install.sh --uninstall      # 或:llm-sanitizer install --uninstall
 rm -rf ~/.llm-sanitizer       # 映射 + 事件——map.json 等同敏感数据,谨慎!
 ```
 

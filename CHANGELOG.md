@@ -26,5 +26,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `llm_sanitizer/__main__.py` — `python3 -m llm_sanitizer` entry point
 - `install.sh` — launchd / systemd installer (pip install becomes the primary path)
 - `tests/` — unit + e2e suite (`mock_upstream.py`, `test_e2e.py`) covering AC-1…AC-8
-- `pyproject.toml` — PyPI packaging; `pip install llm-sanitizer` + `llm-sanitizer start`
+- `pyproject.toml` — PyPI packaging; `pip install llmsanitize` + `llm-sanitizer start`
 - Fix known defects D1–D6 (see `docs/开发文档.md §9`)

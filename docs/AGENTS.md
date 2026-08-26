@@ -6,7 +6,7 @@
 
 ```bash
 # 方式一:发布后(推荐)
-pip install llm-sanitizer
+pip install llmsanitize
 llm-sanitizer start
 
 # 方式二:源码(当前)

@@ -63,6 +63,9 @@ Masking is regex + dictionary lookups over text fields; for typical documents it
 ### Does it support Windows?
 Not yet. v0.2 plans Windows support (installer + path handling). macOS and Linux are supported now.
 
+### How do I upgrade?
+`pip install --upgrade llmsanitize` is all it takes; if auto-start is installed, also run `./install.sh --uninstall && ./install.sh` to restart the service. Or run `llm-sanitizer upgrade` to check the latest version and get instructions (`start` also checks in the background). Upgrades never lose mappings or stats — the `map.json` token format is stable, so old mappings still restore after upgrading.
+
 ### Does it support English / Japanese documents?
 v0.1 ships Chinese rules only. Multilingual rules (EN/JP) are planned for v0.3.
 

@@ -1,11 +1,14 @@
-"""命令行入口：start / status / mask / restore / install / uninstall。"""
+"""命令行入口:start / status / mask / restore / install / uninstall / upgrade。"""
 
 import argparse
+import json
 import os
+import re
 import socket
 import subprocess
 import sys
 import threading
+import urllib.request
 from pathlib import Path
 
 if __package__ in (None, ""):
@@ -15,6 +18,36 @@ if __package__ in (None, ""):
 else:
     from . import config, dashboard, gateway  # noqa: E402
     from .masker import mask_text, restore_text  # noqa: E402
+
+from llm_sanitizer import __version__  # noqa: E402
+
+
+def _version_tuple(v: str) -> tuple:
+    """'1.2.3' → (1,2,3);非数字段忽略。"""
+    return tuple(int(x) for x in re.split(r"[.-]", v) if x.isdigit())[:3] or (0,)
+
+
+def check_update(current: str = __version__):
+    """查询 PyPI 最新版本。失败静默返回 (current, False)。返回 (latest, has_new)。"""
+    try:
+        req = urllib.request.Request(
+            "https://pypi.org/pypi/llmsanitize/json",
+            headers={"User-Agent": f"llm-sanitizer/{current}"},
+        )
+        with urllib.request.urlopen(req, timeout=3) as r:
+            data = json.load(r)
+        latest = data["info"]["version"]
+        return latest, _version_tuple(latest) > _version_tuple(current)
+    except Exception:
+        return current, False
+
+
+def _print_update_hint():
+    latest, has_new = check_update()
+    if has_new:
+        print(f"[llm-sanitizer] 发现新版本 {latest}(当前 {__version__}):")
+        print("  pip install --upgrade llmsanitize   # 升级")
+        print("  升级后重启自启: ./install.sh --uninstall && ./install.sh")
 
 
 def _check_port(port):
@@ -37,6 +70,7 @@ def cmd_start(args):
     print(f"[llm-sanitizer] 看板  http://127.0.0.1:{config.dashboard_port()}")
     print(f"[llm-sanitizer] 上游  {config.upstream()}")
     print("[llm-sanitizer] Ctrl+C 退出")
+    threading.Thread(target=_print_update_hint, daemon=True).start()  # 后台检查更新
     try:
         threading.Event().wait()
     except KeyboardInterrupt:
@@ -94,6 +128,19 @@ def cmd_install(args):
     subprocess.run(["bash", str(script)] + (["--uninstall"] if args.uninstall else []))
 
 
+def cmd_upgrade(args):
+    latest, has_new = check_update()
+    if has_new:
+        print(f"[llm-sanitizer] 发现新版本 {latest}(当前 {__version__})")
+    else:
+        print(f"[llm-sanitizer] 当前已是最新版本({__version__})")
+    print("[llm-sanitizer] 升级:")
+    print("  pip install --upgrade llmsanitize")
+    print("[llm-sanitizer] 升级后重启开机自启服务:")
+    print("  ./install.sh --uninstall && ./install.sh")
+    print("[llm-sanitizer] 说明:升级不丢失映射/统计(map.json 格式稳定,ADR-2)")
+
+
 def main():
     ap = argparse.ArgumentParser(description="LLM Sanitizer - 本地 AI 流量隐私网关")
     sub = ap.add_subparsers(dest="cmd")
@@ -109,6 +156,7 @@ def main():
     p_restore.add_argument("-o", "--output")
     p_inst = sub.add_parser("install", help="安装为开机自启")
     p_inst.add_argument("--uninstall", action="store_true")
+    p_upg = sub.add_parser("upgrade", help="检查更新并查看升级方法")
     args = ap.parse_args()
     if args.cmd == "start":
         cmd_start(args)
@@ -120,6 +168,8 @@ def main():
         cmd_restore(args)
     elif args.cmd == "install":
         cmd_install(args)
+    elif args.cmd == "upgrade":
+        cmd_upgrade(args)
     else:
         ap.print_help()
 
