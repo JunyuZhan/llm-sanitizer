@@ -56,7 +56,16 @@ You should see:
 
 ## 4. Point your agent at the gateway
 
-The universal pattern: **set the agent's base URL to `http://127.0.0.1:8790/v1`**. Any OpenAI-compatible client works.
+**Recommended: one-click integration (v0.2, FR-12).** With Codex installed:
+
+```bash
+llm-sanitizer connect codex      # backs up ~/.codex/config.toml, then writes the gateway URL
+llm-sanitizer disconnect codex   # restores the backup anytime
+```
+
+Or use the console at `http://127.0.0.1:8791` — the "Onboarding" section has **one-click connect / restore** buttons (auto-backup, confirmation dialog).
+
+**Manual:** the universal pattern is **set the agent's base URL to `http://127.0.0.1:8790/v1`**. Any OpenAI-compatible client works.
 
 Step-by-step for **Codex**, **WorkBuddy**, and **OpenClaw**: see [Agent integration](AGENTS.md).
 
@@ -74,6 +83,8 @@ No events? Check the [troubleshooting](#7-troubleshooting) section.
 |---|---|
 | `python3 -m llm_sanitizer start` | Start gateway + dashboard (foreground) |
 | `python3 -m llm_sanitizer status` | Show port status, upstream, and cumulative stats |
+| `python3 -m llm_sanitizer connect <agent>` | One-click integration (auto-backup, restorable; codex for now) |
+| `python3 -m llm_sanitizer disconnect <agent>` | Restore agent config from backup |
 | `python3 -m llm_sanitizer mask <file>` | Mask a single text file (CSV/JSON/SQL/code…) without a gateway |
 | `python3 -m llm_sanitizer restore <file> --map <map.json>` | Restore a masked file using its mapping |
 

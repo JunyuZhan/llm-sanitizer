@@ -136,6 +136,36 @@ def cmd_install(args):
     subprocess.run(["bash", str(script)] + (["--uninstall"] if args.uninstall else []))
 
 
+def cmd_connect(args):
+    """一键接入 Agent(FR-12):备份 → 写入网关 base_url。"""
+    from llm_sanitizer import config_manager
+
+    try:
+        out = config_manager.apply(args.agent)
+    except Exception as e:
+        print(f"[llm-sanitizer] 接入失败:{e}")
+        return 1
+    if out.get("already"):
+        print(f"[llm-sanitizer] {args.agent} 已接入,无需重复修改")
+    else:
+        print(f"[llm-sanitizer] {args.agent} 已接入(备份:{out.get('backup')})")
+        print(f"[llm-sanitizer] 重启 {args.agent} 后生效;随时可用 `llm-sanitizer disconnect {args.agent}` 还原")
+    return 0
+
+
+def cmd_disconnect(args):
+    """一键还原 Agent 配置。"""
+    from llm_sanitizer import config_manager
+
+    try:
+        out = config_manager.restore(args.agent)
+    except Exception as e:
+        print(f"[llm-sanitizer] 还原失败:{e}")
+        return 1
+    print(f"[llm-sanitizer] 已还原配置:{out.get('path')}")
+    return 0
+
+
 def cmd_upgrade(args):
     latest, has_new = check_update()
     if has_new:
@@ -166,6 +196,10 @@ def main():
     p_inst = sub.add_parser("install", help="安装为开机自启")
     p_inst.add_argument("--uninstall", action="store_true")
     p_upg = sub.add_parser("upgrade", help="检查更新并查看升级方法")
+    p_con = sub.add_parser("connect", help="一键接入 Agent(当前支持 codex)")
+    p_con.add_argument("agent")
+    p_dis = sub.add_parser("disconnect", help="一键还原 Agent 配置")
+    p_dis.add_argument("agent")
     args = ap.parse_args()
     if args.cmd == "start":
         cmd_start(args)
@@ -177,6 +211,10 @@ def main():
         cmd_restore(args)
     elif args.cmd == "install":
         cmd_install(args)
+    elif args.cmd == "connect":
+        return cmd_connect(args)
+    elif args.cmd == "disconnect":
+        return cmd_disconnect(args)
     elif args.cmd == "upgrade":
         cmd_upgrade(args)
     else:

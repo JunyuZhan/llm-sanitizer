@@ -18,6 +18,8 @@ python3 -m llm_sanitizer start
 
 ## 1. Codex(CLI / 桌面版)
 
+**一键接入(v0.2):** `llm-sanitizer connect codex` 会自动备份 `~/.codex/config.toml` 并写入下方配置;`llm-sanitizer disconnect codex` 或看板"接入引导"区的一键还原可随时恢复原样。以下为手动方式。
+
 编辑 `~/.codex/config.toml`(先备份):
 
 ```toml

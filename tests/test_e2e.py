@@ -13,6 +13,7 @@ import sys
 import tempfile
 import threading
 import unittest
+from pathlib import Path
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -215,6 +216,53 @@ class TestConsole(GatewayFixture):
         self.assertIsInstance(data["agents"], list)
         self.assertTrue(any(a["id"] == "codex" for a in data["agents"]))
 
+    def test_agent_apply_requires_token(self):
+        """FR-12:接入写接口无令牌返回 403。"""
+        conn = http.client.HTTPConnection("127.0.0.1", self.dport, timeout=10)
+        conn.request("POST", "/api/agents/apply",
+                     body=b'{"agent_id":"codex"}',
+                     headers={"Content-Type": "application/json"})
+        resp = conn.getresponse()
+        conn.close()
+        self.assertEqual(resp.status, 403)
+
+    def test_agent_apply_and_restore(self):
+        """FR-12:一键接入写入配置(带 token),一键还原恢复原样。"""
+        codex_dir = Path(self.home) / ".codex"
+        codex_dir.mkdir(parents=True, exist_ok=True)
+        cfg = codex_dir / "config.toml"
+        orig = '[model]\nname = "gpt-4o"\n'
+        cfg.write_text(orig, encoding="utf-8")
+        old_home = os.environ.get("HOME")
+        os.environ["HOME"] = self.home
+        try:
+            conn = http.client.HTTPConnection("127.0.0.1", self.dport, timeout=10)
+            conn.request("POST", "/api/agents/apply",
+                         body=json.dumps({"agent_id": "codex"}).encode(),
+                         headers={"Content-Type": "application/json", "X-Local-Token": "local"})
+            resp = conn.getresponse()
+            body = resp.read()
+            conn.close()
+            self.assertEqual(resp.status, 200, body)
+            self.assertTrue(json.loads(body)["ok"])
+            text = cfg.read_text(encoding="utf-8")
+            self.assertIn("[model_providers.llm-sanitizer]", text)
+            self.assertIn(orig, text, "原配置必须保留")
+
+            conn = http.client.HTTPConnection("127.0.0.1", self.dport, timeout=10)
+            conn.request("POST", "/api/agents/restore",
+                         body=json.dumps({"agent_id": "codex"}).encode(),
+                         headers={"Content-Type": "application/json", "X-Local-Token": "local"})
+            resp = conn.getresponse()
+            conn.close()
+            self.assertEqual(resp.status, 200)
+            self.assertEqual(cfg.read_text(encoding="utf-8"), orig, "还原后应与原文一致")
+        finally:
+            if old_home is None:
+                os.environ.pop("HOME", None)
+            else:
+                os.environ["HOME"] = old_home
+
     def test_settings_get(self):
         status, body = _get(self.dport, "/api/settings")
         self.assertEqual(status, 200)
@@ -406,12 +454,14 @@ class TestWebSocket(GatewayFixture):
 
 if __name__ == "__main__":
     import test_cli
+    import test_config_manager
     import test_masker
 
     suite = unittest.TestSuite()
     loader = unittest.defaultTestLoader
     suite.addTests(loader.loadTestsFromModule(test_masker))
     suite.addTests(loader.loadTestsFromModule(test_cli))
+    suite.addTests(loader.loadTestsFromModule(test_config_manager))
     suite.addTests(loader.loadTestsFromModule(sys.modules[__name__]))
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     sys.exit(0 if result.wasSuccessful() else 1)

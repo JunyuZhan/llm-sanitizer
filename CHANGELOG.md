@@ -17,9 +17,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `词|类别`); entries take priority over built-in rules, independent-word matching avoids substring
   false hits; maintained via CLI `mask --wordlist`, console panel and `POST /api/wordlist`.
 - Console: custom word list panel (view/edit, 600-perm persistence, token-protected).
-- Tests: +15 cases (WS proxy e2e: placeholders-only upstream, restored client text, ping/pong,
-  Host 403, dashboard events; word list: hits, priority, boundary, toggle, parse, round-trip,
-  CLI --wordlist, console API) — 44 total, all pass.
+- **One-click agent integration (FR-12)**: `config_manager` full backup/apply/restore — Codex
+  config.toml rewritten text-level (no tomllib dependency, Python 3.9 safe), original content
+  preserved, backup with 600 perms, idempotent apply, restore returns exact original; wired as
+  CLI `connect`/`disconnect`, console buttons (apply/restore with confirm), protected endpoints
+  `POST /api/agents/apply|restore` (X-Local-Token).
+- Tests: +11 cases (config_manager unit: detect/apply/backup/idempotent/restore/permissions;
+  console apply 403 + round-trip) — 55 total, all pass.
 
 ## [0.1.0] - 2026-08-27
 

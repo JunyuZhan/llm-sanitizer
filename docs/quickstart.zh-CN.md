@@ -56,8 +56,16 @@ python3 -m llm_sanitizer start
 
 ## 4. 把 Agent 指向网关
 
-统一模式:**把 Agent 的 base URL 设为 `http://127.0.0.1:8790/v1`**,任意 OpenAI 兼容客户端即可。
+**推荐:一键接入(v0.2,FR-12)。** 已装 Codex 时:
 
+```bash
+llm-sanitizer connect codex      # 自动备份 ~/.codex/config.toml 后写入网关地址
+llm-sanitizer disconnect codex   # 随时用备份还原(配置恢复原样)
+```
+
+或在看板 `http://127.0.0.1:8791` 的"接入引导"区点 **一键接入 / 一键还原**(自动备份,界面确认)。
+
+**手动方式**:把 Agent 的 base URL 设为 `http://127.0.0.1:8790/v1`,任意 OpenAI 兼容客户端即可。
 Codex / WorkBuddy / OpenClaw 的分步配置见 [Agent 接入指南](AGENTS.md)。
 
 ## 5. 验证确实生效
@@ -74,6 +82,8 @@ Codex / WorkBuddy / OpenClaw 的分步配置见 [Agent 接入指南](AGENTS.md)�
 |---|---|
 | `python3 -m llm_sanitizer start` | 启动网关 + 看板(前台) |
 | `python3 -m llm_sanitizer status` | 查看端口状态、上游、累计统计 |
+| `python3 -m llm_sanitizer connect <agent>` | 一键接入 Agent(自动备份,可还原;当前支持 codex) |
+| `python3 -m llm_sanitizer disconnect <agent>` | 一键还原 Agent 配置 |
 | `python3 -m llm_sanitizer mask <文件>` | 不经过网关,对单个文本文件脱敏(CSV/JSON/SQL/代码……) |
 | `python3 -m llm_sanitizer restore <文件> --map <map.json>` | 用映射文件还原已脱敏文件 |
 

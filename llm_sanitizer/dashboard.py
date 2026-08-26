@@ -192,11 +192,35 @@ function refresh() {
 
 function loadAgents() {
   fetch('/api/agents').then(r=>r.json()).then(d=>{
-    document.getElementById('agents').innerHTML = d.agents.map(a =>
-      '<div class="agent"><span>' + a.name +
-      ' <span class="det ' + (a.detected?'y':'n') + '">' + (a.detected ? '已检测到 ' + a.path : '未检测到') +
-      '</span></span></div>').join('');
+    document.getElementById('agents').innerHTML = d.agents.map(a => {
+      let action = '';
+      if (a.detected && a.auto) {
+        if (a.applied) {
+          action = ' <button class="btn" onclick="agentAction(\'restore\',\'' + a.id + '\')">一键还原</button>';
+        } else {
+          action = ' <button class="btn btn-p" onclick="agentAction(\'apply\',\'' + a.id + '\')">一键接入</button>';
+        }
+      } else if (a.detected) {
+        action = ' <span class="tag">需手动配置</span>';
+      }
+      return '<div class="agent"><span>' + a.name +
+        ' <span class="det ' + (a.detected?'y':'n') + '">' + (a.detected ? '已检测到' : '未检测到') +
+        (a.applied ? ' · 已接入' : '') + '</span></span>' + action + '</div>';
+    }).join('');
   }).catch(()=>{ document.getElementById('agents').textContent = '检测失败'; });
+}
+
+function agentAction(kind, id) {
+  const verb = kind === 'apply' ? '修改 ' + id + ' 的配置文件(自动备份,可一键还原)' : '用备份还原 ' + id + ' 的配置';
+  if (!confirm('确认' + verb + '?')) return;
+  fetch('/api/agents/' + kind, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','X-Local-Token':'local'},
+    body: JSON.stringify({agent_id: id})
+  }).then(r=>r.json()).then(d=>{
+    alert(d.ok ? (kind === 'apply' ? '已接入(备份:' + (d.backup || '已存在') + ')' : '已还原') : ('失败:' + (d.error||'')));
+    loadAgents();
+  }).catch(()=>{ alert('操作失败'); });
 }
 
 function preset(p) {
@@ -332,7 +356,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self._json(403, {"error": "forbidden origin"})
             return
         path = urlparse(self.path).path
-        if path not in ("/api/settings", "/api/wordlist"):
+        if path not in ("/api/settings", "/api/wordlist", "/api/agents/apply", "/api/agents/restore"):
             self._json(404, {"error": "not found"})
             return
         # 写接口保护(FR-8):要求本地自定义头,浏览器跨站无法携带
@@ -345,6 +369,18 @@ class DashboardHandler(BaseHTTPRequestHandler):
             data = json.loads(raw or b"{}")
         except Exception:
             self._json(400, {"error": "bad json"})
+            return
+        if path in ("/api/agents/apply", "/api/agents/restore"):
+            agent_id = str(data.get("agent_id") or "")
+            try:
+                if path.endswith("/apply"):
+                    out = config_manager.apply(agent_id)
+                    self._json(200, {"ok": True, **out})
+                else:
+                    out = config_manager.restore(agent_id)
+                    self._json(200, {"ok": True, **out})
+            except Exception as e:
+                self._json(400, {"error": str(e)})
             return
         if path == "/api/wordlist":
             text = str(data.get("text") or "")
