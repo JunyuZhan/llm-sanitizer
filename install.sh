@@ -75,7 +75,7 @@ install() {
   <array>
 ${ARGS}  </array>
   <key>RunAtLoad</key><true/>
-  <key>KeepAlive</key><true/>
+  <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
   <key>EnvironmentVariables</key>
   <dict>
     <key>LLM_SANITIZER_HOME</key><string>$DATA_DIR</string>

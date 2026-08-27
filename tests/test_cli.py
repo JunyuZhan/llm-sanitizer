@@ -129,6 +129,13 @@ class TestCLI(unittest.TestCase):
                 # 不允许残留字面量 \\n(旧 bug 特征)
                 raw = open(plist, encoding="utf-8").read()
                 self.assertNotIn("\\n", raw)
+                # KeepAlive 必须是 SuccessfulExit=false:仅异常退出才重启;
+                # 端口被占时 start 会安静退出(码 0),不会触发 launchd 重启死循环
+                self.assertIn(
+                    "<key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>",
+                    raw,
+                    f"KeepAlive 应为 SuccessfulExit=false: {raw}",
+                )
             else:
                 unit = os.path.join(d, ".config", "systemd", "user", "llm-sanitizer.service")
                 self.assertTrue(os.path.exists(unit), "systemd unit 未生成")

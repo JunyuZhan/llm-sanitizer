@@ -99,6 +99,78 @@ class TestConfigManager(unittest.TestCase):
         self.assertNotIn("model_provider", provider)
         self.assertEqual(provider.get("base_url"), "http://127.0.0.1:8790/v1")
 
+    def _assert_toml_root_key(self, expected="llm-sanitizer"):
+        """tomllib 断言根级 model_provider 生效且表内无该键。"""
+        try:
+            import tomllib
+        except ImportError:  # Python 3.9/3.10
+            self.skipTest("tomllib requires Python 3.11+")
+        with open(self.codex, "rb") as f:
+            data = tomllib.load(f)
+        self.assertEqual(data.get("model_provider"), expected)
+        provider = data.get("model_providers", {}).get("llm-sanitizer", {})
+        self.assertNotIn("model_provider", provider)
+
+    def _write_legacy_bad_config(self):
+        """模拟旧版 connect 写入的坏配置:表存在,但根键落在了表内。"""
+        self.codex.write_text(
+            '[model_providers.llm-sanitizer]\n'
+            'name = "LLM Sanitizer"\n'
+            'base_url = "http://127.0.0.1:8790/v1"\n'
+            'env_key = "LLM_SANITIZER_KEY"\n'
+            'wire_api = "responses"\n'
+            '\n'
+            'model_provider = "llm-sanitizer"\n',
+            encoding="utf-8",
+        )
+
+    def test_detect_legacy_bad_config_not_applied(self):
+        """旧坏配置(根键缺失)detect 必须报未接入,而不是误报已接入。"""
+        self._write_legacy_bad_config()
+        agents = {a["id"]: a for a in cm.detect_agents()}
+        self.assertFalse(agents["codex"]["applied"])
+
+    def test_apply_migrates_legacy_bad_config(self):
+        """迁移自愈:旧坏配置重跑 connect 补根键,Codex 实际切换 provider。"""
+        self._write_legacy_bad_config()
+        r = cm.apply("codex")
+        self.assertTrue(r["applied"])
+        self.assertFalse(r["already"])
+        self.assertTrue(Path(r["backup"]).exists(), "迁移必须先备份")
+        self._assert_toml_root_key("llm-sanitizer")
+        # 原坏配置内容(表)保留,仅补根键
+        text = self.codex.read_text(encoding="utf-8")
+        self.assertIn('[model_providers.llm-sanitizer]', text)
+        self.assertIn('wire_api = "responses"', text)
+
+    def test_apply_migrate_is_idempotent(self):
+        """迁移后再 connect 幂等跳过,不再产生新备份。"""
+        self._write_legacy_bad_config()
+        cm.apply("codex")
+        r2 = cm.apply("codex")
+        self.assertTrue(r2["already"])
+        self.assertEqual(len(cm.list_backups("codex")), 1)
+
+    def test_apply_replaces_existing_root_provider(self):
+        """根级已有其他 provider(如 openai):接入时替换为 llm-sanitizer。"""
+        orig = 'model = "gpt-5"\nmodel_provider = "openai"\n\n[mcp_servers.local]\ncommand = "npx"\n'
+        self.codex.write_text(orig, encoding="utf-8")
+        r = cm.apply("codex")
+        self.assertTrue(r["applied"])
+        self.assertFalse(r["already"])
+        self._assert_toml_root_key("llm-sanitizer")
+        text = self.codex.read_text(encoding="utf-8")
+        self.assertIn('model = "gpt-5"', text, "其他根键必须保留")
+        self.assertIn("[mcp_servers.local]", text, "已有 table 必须保留")
+        self.assertNotIn('model_provider = "openai"', text)
+
+    def test_apply_ignores_commented_root_key(self):
+        """头部注释里的 model_provider 不算已配置,必须真正插入根键。"""
+        orig = '# model_provider = "openai"\nmodel = "gpt-5"\n'
+        self.codex.write_text(orig, encoding="utf-8")
+        cm.apply("codex")
+        self._assert_toml_root_key("llm-sanitizer")
+
     def test_apply_unsupported_agent(self):
         with self.assertRaises(ValueError):
             cm.apply("openclaw")

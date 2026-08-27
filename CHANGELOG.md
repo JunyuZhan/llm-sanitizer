@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **connect codex 迁移自愈(v0.5.2+ 审查修复)**:旧版(≤v0.3)一键接入把
+  `model_provider` 根键误写入 `[model_providers.llm-sanitizer]` 表内,Codex
+  实际未切换 provider。现在 `apply()` 能识别该坏配置:补根键(首个 `[table]`
+  之前)、清理表内残留键、先备份可一键还原;`detect_agents()` 的 applied
+  判断从子串匹配升级为"根键存在且指向 llm-sanitizer + 表存在",坏配置不再
+  误报已接入。根级已声明其他 provider(如 openai)时接入会替换为
+  llm-sanitizer(disconnect 可还原)。
+- **CI 全量回归**:`test_e2e.py` 聚合漏掉 `test_port_probe.py`(11 项,覆盖
+  端口预检与 v0.5.2 端口持久化),CI 此前只跑 109/120——已补齐聚合。
+  Tests: +5(config_manager 迁移/替换/注释误判),125 total,all pass。
+
 ## [0.5.2] - 2026-08-27
 
 ### Added
