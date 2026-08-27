@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.2] - 2026-08-27
+
+### Added
+
+- **OpenCode 一键接入**:`~/.config/opencode/opencode.json` 增加
+  `llm-sanitizer` provider(`@ai-sdk/openai-compatible`,与社区自定义 provider
+  同构)并切换 `model`;保留用户原有 provider/plugin;备份+幂等+一键还原。
+- **接入端口动态化扩展**:OpenCode 的 baseURL 同样取持久化网关端口。
+
+### Fixed
+
+- **Gemini CLI 0.33.x 不支持自定义 baseUrl**(官方 PR #16010 未进该版本,
+  实测 settings 的 baseUrl/.env 均被忽略、仍请求官方端点)→ 移除无效接入逻辑,
+  Gemini 保持"已检测到 · 暂不支持一键接入",避免"显示开启、实际无效"的坑;
+  看板文案从"需手动配置"改为"暂不支持一键接入"。
+- Tests: +7(OpenCode 接入往返/幂等/还原、矩阵 auto 断言),143 total。
+
 ## [0.6.1] - 2026-08-27
 
 ### Fixed

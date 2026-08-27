@@ -110,18 +110,20 @@ def _config_path(agent_id):
     if agent_id == "openclaw":
         return home / ".openclaw" / "config.json"
     if agent_id == "opencode":
-        return home / ".opencode"
+        return home / ".config" / "opencode" / "opencode.json"
     return None
 
 
 # 检测矩阵:(id, 显示名, 配置路径, CLI 名, 是否支持自动接入)
+# gemini 0.33.x 不支持自定义 baseUrl(官方 PR #16010 未进该版本),
+# 硬接入会"显示开启、实际无效"——保持检测展示,待 CLI 支持后再启用。
 _AGENT_PROBES = [
     ("codex", "Codex CLI", ".codex/config.toml", "codex", True),
     ("claude", "Claude Code", ".claude/settings.json", "claude", True),
     ("gemini", "Gemini CLI", ".gemini/settings.json", "gemini", False),
+    ("opencode", "OpenCode", ".config/opencode/opencode.json", "opencode", True),
     ("workbuddy", "WorkBuddy", ".workbuddy", "workbuddy", False),
     ("openclaw", "OpenClaw", ".openclaw/config.json", "openclaw", False),
-    ("opencode", "OpenCode", ".opencode", "opencode", False),
 ]
 
 
@@ -133,6 +135,16 @@ def _claude_applied(text: str) -> bool:
     except Exception:
         return False
     return base.startswith("http://127.0.0.1:") or base.startswith("http://localhost:")
+
+
+def _local_base_url(base: str) -> bool:
+    """base URL 是否指向本机(llm-sanitizer 网关特征)。"""
+    return base.startswith("http://127.0.0.1:") or base.startswith("http://localhost:")
+
+
+def _opencode_applied(obj: dict) -> bool:
+    """OpenCode 是否已接入:model 指向 llm-sanitizer provider。"""
+    return str(obj.get("model") or "").startswith("llm-sanitizer/")
 
 
 def detect_agents() -> list:
@@ -161,6 +173,8 @@ def detect_agents() -> list:
                     )
                 elif pid == "claude" and path.name == "settings.json":
                     applied = _claude_applied(text)
+                elif pid == "opencode" and path.name == "opencode.json":
+                    applied = _opencode_applied(json.loads(text) if text else {})
             except Exception:
                 pass
         result.append({
@@ -220,6 +234,8 @@ def apply(agent_id) -> dict:
     llm-sanitizer(原值可由 disconnect 从备份还原)。"""
     if agent_id == "claude":
         return _apply_claude()
+    if agent_id == "opencode":
+        return _apply_opencode()
     if agent_id != "codex":
         raise ValueError(f"暂不支持自动接入 {agent_id}(请手动配置)")
     src = _config_path("codex")
@@ -282,6 +298,41 @@ def _apply_claude() -> dict:
     env["ANTHROPIC_BASE_URL"] = base
     env["ANTHROPIC_AUTH_TOKEN"] = "llm-sanitizer-local"  # 网关仅做本地校验,不真正鉴权
     obj["env"] = env
+    _atomic_write_json(src, obj)
+    return {"applied": True, "already": False, "backup": str(bak)}
+
+
+def _apply_opencode() -> dict:
+    """OpenCode 一键接入:opencode.json 增加 llm-sanitizer provider 并切换 model。
+
+    格式与用户自定义 provider 一致(@ai-sdk/openai-compatible,社区标准),
+    网关暴露 OpenAI 兼容端点;保留用户原有 provider/plugin/模型配置。
+    """
+    src = _config_path("opencode")
+    if not src or not src.exists():
+        raise FileNotFoundError("未找到 ~/.config/opencode/opencode.json")
+    try:
+        obj = json.loads(src.read_text(encoding="utf-8"))
+        if not isinstance(obj, dict):
+            obj = {}
+    except Exception:
+        obj = {}
+    if _opencode_applied(obj):
+        return {"applied": True, "already": True, "backup": ""}
+    bak = backup("opencode")
+    providers = obj.get("provider") or {}
+    if not isinstance(providers, dict):
+        providers = {}
+    providers["llm-sanitizer"] = {
+        "models": {"gpt-4o": {"name": "LLM Sanitizer"}},
+        "npm": "@ai-sdk/openai-compatible",
+        "options": {
+            "baseURL": _gateway_base(),
+            "apiKey": "llm-sanitizer-local",
+        },
+    }
+    obj["provider"] = providers
+    obj["model"] = "llm-sanitizer/gpt-4o"
     _atomic_write_json(src, obj)
     return {"applied": True, "already": False, "backup": str(bak)}
 

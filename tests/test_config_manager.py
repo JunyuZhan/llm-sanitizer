@@ -184,6 +184,7 @@ class TestConfigManager(unittest.TestCase):
         for pid in ("codex", "claude", "gemini", "workbuddy", "openclaw", "opencode"):
             self.assertIn(pid, agents, f"缺少检测项 {pid}")
         self.assertTrue(agents["claude"]["auto"], "Claude Code 应支持一键接入")
+        # gemini 0.33.x 不支持自定义 baseUrl(官方 PR 未进该版本),仅检测展示
         self.assertFalse(agents["gemini"]["auto"])
 
     def test_claude_detected_via_config(self):
@@ -227,6 +228,55 @@ class TestConfigManager(unittest.TestCase):
             os.environ.pop("LLM_SANITIZER_PORT", None)
         text = self.codex.read_text(encoding="utf-8")
         self.assertIn('base_url = "http://127.0.0.1:8792/v1"', text)
+
+    # ---- v0.6:OpenCode / Gemini CLI 自动接入 ----
+
+    def _opencode_path(self):
+        p = Path(self.home) / ".config" / "opencode" / "opencode.json"
+        p.parent.mkdir(parents=True, exist_ok=True)
+        return p
+
+    def test_apply_opencode_writes_provider_and_switches_model(self):
+        p = self._opencode_path()
+        p.write_text(json.dumps({
+            "model": "ollama/gemma4",
+            "provider": {"deep-seek": {"npm": "@ai-sdk/openai-compatible",
+                                       "options": {"apiKey": "sk-x"}}},
+        }), encoding="utf-8")
+        r = cm.apply("opencode")
+        self.assertTrue(r["applied"])
+        obj = json.loads(p.read_text(encoding="utf-8"))
+        self.assertEqual(obj["model"], "llm-sanitizer/gpt-4o")
+        prov = obj["provider"]["llm-sanitizer"]
+        self.assertEqual(prov["npm"], "@ai-sdk/openai-compatible")
+        self.assertEqual(prov["options"]["baseURL"], "http://127.0.0.1:8790/v1")
+        self.assertIn("deep-seek", obj["provider"], "原有 provider 必须保留")
+        # 检测已接入 + 幂等
+        agents = {a["id"]: a for a in cm.detect_agents()}
+        self.assertTrue(agents["opencode"]["applied"])
+        self.assertTrue(cm.apply("opencode")["already"])
+        # 还原恢复原样
+        cm.restore("opencode")
+        self.assertEqual(json.loads(p.read_text(encoding="utf-8")),
+                         {"model": "ollama/gemma4",
+                          "provider": {"deep-seek": {"npm": "@ai-sdk/openai-compatible",
+                                                     "options": {"apiKey": "sk-x"}}}})
+
+    def test_apply_opencode_missing_config_raises(self):
+        with self.assertRaises(FileNotFoundError):
+            cm.apply("opencode")
+
+    def test_apply_gemini_missing_config_raises(self):
+        with self.assertRaises(ValueError):
+            cm.apply("gemini")
+
+    def test_detect_matrix_all_auto(self):
+        """v0.6:codex/claude/opencode 支持一键接入;gemini 0.33 不支持 baseUrl,仅检测。"""
+        agents = {a["id"]: a for a in cm.detect_agents()}
+        for pid in ("codex", "claude", "opencode"):
+            self.assertTrue(agents[pid]["auto"], f"{pid} 应支持一键接入")
+        self.assertFalse(agents["gemini"]["auto"])
+        self.assertFalse(agents["workbuddy"]["auto"])
 
 
 if __name__ == "__main__":

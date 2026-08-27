@@ -193,7 +193,7 @@ function loadAgents() {
         badge = '<span class="det y">已检测到</span>';
         action = ' <button class="btn btn-p" onclick="agentAction(&quot;apply&quot;,&quot;' + a.id + '&quot;)">开启脱敏</button>';
       } else {
-        badge = '<span class="det y">已检测到</span><span class="tag">需手动配置</span>';
+        badge = '<span class="det y">已检测到</span><span class="tag">暂不支持一键接入</span>';
       }
       return '<div class="agent"><span>' + a.name +
         ' ' + badge +
