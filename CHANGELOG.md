@@ -20,6 +20,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   端口预检与 v0.5.2 端口持久化),CI 此前只跑 109/120——已补齐聚合。
   Tests: +5(config_manager 迁移/替换/注释误判),125 total,all pass。
 
+## [0.5.3] - 2026-08-27
+
+### Added
+
+- **桌面窗口一键模式**:后台已有服务(开机自启/手动 start)时,`llm-sanitizer desktop`
+  直接打开看板窗口看数据——不重复起服务,关闭窗口不影响后台(launchd 托管)。
+  空闲时才自起服务,关窗即停。窗口即"一键打开看数据、关窗即走"。
+- Tests: +5(desktop 三态 + 关窗不停后台服务),129 total。
+
 ## [0.5.2] - 2026-08-27
 
 ### Added
