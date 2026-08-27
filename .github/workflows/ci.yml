@@ -29,3 +29,15 @@ jobs:
         run: |
           python3 -c "import llm_sanitizer; print('version', llm_sanitizer.__version__)"
           python3 -m llm_sanitizer status >/dev/null
+      - name: Windows auto-start round-trip (real schtasks)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          python3 -m llm_sanitizer install
+          schtasks /Query /TN llm-sanitizer >/dev/null 2>&1 && echo "TASK CREATED OK" || { echo "TASK NOT CREATED"; exit 1; }
+          python3 -m llm_sanitizer install --uninstall
+          if schtasks /Query /TN llm-sanitizer >/dev/null 2>&1; then
+            echo "TASK STILL EXISTS AFTER UNINSTALL"; exit 1
+          else
+            echo "TASK REMOVED OK"
+          fi
