@@ -34,9 +34,10 @@ jobs:
         shell: bash
         run: |
           python3 -m llm_sanitizer install
-          schtasks /Query /TN llm-sanitizer >/dev/null 2>&1 && echo "TASK CREATED OK" || { echo "TASK NOT CREATED"; exit 1; }
+          # MSYS_NO_PATHCONV:Git Bash 会把 /Query 转成 Git 路径,必须禁用
+          MSYS_NO_PATHCONV=1 schtasks /Query /TN llm-sanitizer >/dev/null 2>&1 && echo "TASK CREATED OK" || { echo "TASK NOT CREATED"; exit 1; }
           python3 -m llm_sanitizer install --uninstall
-          if schtasks /Query /TN llm-sanitizer >/dev/null 2>&1; then
+          if MSYS_NO_PATHCONV=1 schtasks /Query /TN llm-sanitizer >/dev/null 2>&1; then
             echo "TASK STILL EXISTS AFTER UNINSTALL"; exit 1
           else
             echo "TASK REMOVED OK"
