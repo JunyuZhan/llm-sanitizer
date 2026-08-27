@@ -97,7 +97,7 @@ def cmd_status(args):
 
 
 def cmd_mask(args):
-    from llm_sanitizer.formats import _is_zip_doc, mask_file
+    from llm_sanitizer.formats import mask_file, supports
     from llm_sanitizer.masker import Masker, load_wordlist_file
 
     src = Path(args.file)
@@ -106,13 +106,13 @@ def cmd_mask(args):
     else:
         masker = None
     dest = Path(args.output) if args.output else src.with_name("masked_" + src.name)
-    if _is_zip_doc(args.file):
-        # docx/xlsx:保留格式脱敏(辅助链路:先脱敏文件再交 Agent)
+    if supports(args.file):
+        # docx/xlsx/pdf:保留格式脱敏(辅助链路:先脱敏文件再交 Agent)
         m = Masker() if masker is None else masker
         changed = mask_file(str(src), str(dest), m)
         if args.map:
             m.save(args.map)  # 原子写 + chmod 600(D7 修复)
-        print(f"[ok] 已写入 {dest}(保留格式,改动 {changed} 个 XML 条目)")
+        print(f"[ok] 已写入 {dest}(保留格式,改动 {changed} 个流/条目)")
     else:
         text = src.read_text(encoding="utf-8")
         if masker is None:
@@ -130,14 +130,14 @@ def cmd_mask(args):
 def cmd_restore(args):
     import json
 
-    from llm_sanitizer.formats import _is_zip_doc, restore_file
+    from llm_sanitizer.formats import restore_file, supports
 
     mapping = json.loads(Path(args.map).read_text(encoding="utf-8"))
     src = Path(args.file)
     dest = Path(args.output) if args.output else src.with_name("restored_" + src.name)
-    if _is_zip_doc(args.file):
+    if supports(args.file):
         changed = restore_file(str(src), str(dest), mapping)
-        print(f"[ok] 已写入 {dest}(还原 {changed} 个 XML 条目)")
+        print(f"[ok] 已写入 {dest}(还原 {changed} 个流/条目)")
     else:
         text = src.read_text(encoding="utf-8")
         out = restore_text(text, mapping)

@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] — 0.4.0
+
+### Added
+
+- **PDF format-preserving masking** (`formats.py`): decompress FlateDecode streams,
+  rewrite `(…) Tj` / `[(…)…] TJ` text operators (byte-wise octal escaping — a real bug:
+  Unicode-codepoint octal produced invalid 4+-digit escapes), recompress and update
+  `/Length` (indirect-length objects skipped). Honest limits: split text fragments are
+  not re-joined (context rules like names limited; format rules like phone/ID/email work),
+  scanned PDFs (no text layer) unsupported. CLI mask/restore now handle .pdf.
+- Tests: +2 (PDF round-trip with /Length update, indirect-length skip) — 77 total.
+
 ## [0.3.0] - 2026-08-27
 
 ### Added

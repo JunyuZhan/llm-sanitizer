@@ -1,14 +1,16 @@
-"""格式处理器单元测试:docx/xlsx 保留格式脱敏/还原(v0.2)。
+"""格式处理器单元测试:docx/xlsx/pdf 保留格式脱敏/还原(v0.2+/v0.3)。
 
-构造最小 docx/xlsx(ZIP + XML),断言:文本节点被替换、XML 结构与属性
-(如 xml:space)完好、还原后与原文一致。
+构造最小 docx/xlsx/pdf(ZIP+XML / FlateDecode stream),断言:文本被替换、
+XML 结构与属性(如 xml:space)完好、PDF /Length 更新且还原后与原文一致。
 """
 
 import os
+import re
 import sys
 import tempfile
 import unittest
 import zipfile
+import zlib
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -123,6 +125,61 @@ class TestFormats(unittest.TestCase):
             formats.mask_file(src, dst, Masker())
             ct = _read_zip(dst, "[Content_Types].xml")
             self.assertIn("content-types", ct)
+
+    def test_pdf_mask_and_restore(self):
+        """v0.3:PDF FlateDecode stream 文本替换、/Length 更新、还原一致。"""
+        content = "BT /F1 12 Tf 72 720 Td (电话 13912345678) Tj ET".encode("utf-8")
+        comp = zlib.compress(content)
+        pdf = (
+            b"%PDF-1.4\n"
+            b"1 0 obj\n<< /Type /Catalog >>\nendobj\n"
+            b"2 0 obj\n<< /Type /Page /Parent 1 0 R /Contents 3 0 R >>\nendobj\n"
+            b"3 0 obj\n<< /Length " + str(len(comp)).encode() + b" /Filter /FlateDecode >>\n"
+            b"stream\n" + comp + b"\nendstream\nendobj\n"
+            b"trailer\n<< /Root 1 0 R >>\n%%EOF"
+        )
+        with tempfile.TemporaryDirectory() as d:
+            src = os.path.join(d, "in.pdf")
+            dst = os.path.join(d, "masked.pdf")
+            rest = os.path.join(d, "restored.pdf")
+            Path(src).write_bytes(pdf)
+            masker = Masker()
+            changed = formats.mask_file(src, dst, masker)
+            self.assertGreater(changed, 0, "PDF 应有流被改动")
+            data = Path(dst).read_bytes()
+            # stream 解压后含占位符(非 ASCII 以 PDF 八进制转义表示)、无明文
+            m = re.search(rb"stream\r?\n(.*?)\r?\nendstream", data, re.S)
+            self.assertIsNotNone(m)
+            dec = zlib.decompress(m.group(1))
+            self.assertIn(formats._pdf_escape("[手机号_1]"), dec)
+            self.assertNotIn(b"13912345678", dec)
+            # /Length 已更新为新流长度
+            self.assertIn(b"/Length " + str(len(m.group(1))).encode(), data)
+            # 还原后文本语义与原文一致(PDF 转义形式可能不同,比较解码后文本)
+            formats.restore_file(dst, rest, masker.mapping)
+            rdata = Path(rest).read_bytes()
+            rm = re.search(rb"stream\r?\n(.*?)\r?\nendstream", rdata, re.S)
+            restored_text = formats._pdf_unescape(zlib.decompress(rm.group(1)))
+            self.assertIn("电话", restored_text)
+            self.assertIn("13912345678", restored_text)
+
+    def test_pdf_indirect_length_skipped(self):
+        """v0.3:/Length 为间接引用(3 0 R)时跳过,不改动。"""
+        comp = zlib.compress(b"BT (13912345678) Tj ET")
+        pdf = (
+            b"%PDF-1.4\n"
+            b"3 0 obj\n<< /Length 4 0 R /Filter /FlateDecode >>\n"
+            b"stream\n" + comp + b"\nendstream\nendobj\n"
+            b"4 0 obj\n" + str(len(comp)).encode() + b"\nendobj\n"
+            b"trailer\n<< >>\n%%EOF"
+        )
+        with tempfile.TemporaryDirectory() as d:
+            src = os.path.join(d, "in.pdf")
+            dst = os.path.join(d, "masked.pdf")
+            Path(src).write_bytes(pdf)
+            changed = formats.mask_file(src, dst, Masker())
+            self.assertEqual(changed, 0, "间接引用 /Length 应跳过")
+            self.assertEqual(Path(dst).read_bytes(), pdf)
 
 
 if __name__ == "__main__":
