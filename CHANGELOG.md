@@ -5,20 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.6.0] - 2026-08-27
+
+### Added
+
+- **Agent 自动扫描(看板点选开启脱敏)**:`detect_agents()` 从 2 个扩展到 6 个
+  常见 AI 工具——Codex / Claude Code / Gemini CLI / WorkBuddy / OpenClaw /
+  OpenCode(配置文件或 CLI 任一命中即 detected)。看板首页从"让用户填上游 URL
+  的手动引导"改为**开关式列表**:点一下"开启脱敏"即自动备份+接入,点"关闭
+  脱敏"即还原,普通用户全程只点鼠标。高级设置(上游地址/密钥/类别)收进
+  「高级设置」折叠,不再默认展示。
+- **Claude Code 自动接入**:`~/.claude/settings.json` 写入
+  `env.ANTHROPIC_BASE_URL`(指向本网关)+ `ANTHROPIC_AUTH_TOKEN`(本地占位),
+  保留用户原有字段;幂等跳过、原子写 + 600、`detect` 可识别已接入、一键还原。
+- **接入端口动态化**:一键接入写入的 `base_url` 取持久化端口
+  (settings.json / env),不再写死 8790——用户换端口后接入不再连错服务。
+- **English rules (SSN / international passport)**(v0.5 候选落地):
+  US SSN(`XXX-XX-XXXX`,area 001–899 非 666、组/序非零)新类别 `SSN`;
+  国际护照(Passport no./护照号/旅行证件 + 号码格式)并入 `证件号`。
+- Tests: +10(agent 扫描矩阵/Claude 接入往返与幂等/动态端口/英文规则用例),
+  134 total,all pass。
 
 ### Fixed
 
-- **connect codex 迁移自愈(v0.5.2+ 审查修复)**:旧版(≤v0.3)一键接入把
-  `model_provider` 根键误写入 `[model_providers.llm-sanitizer]` 表内,Codex
-  实际未切换 provider。现在 `apply()` 能识别该坏配置:补根键(首个 `[table]`
-  之前)、清理表内残留键、先备份可一键还原;`detect_agents()` 的 applied
-  判断从子串匹配升级为"根键存在且指向 llm-sanitizer + 表存在",坏配置不再
-  误报已接入。根级已声明其他 provider(如 openai)时接入会替换为
-  llm-sanitizer(disconnect 可还原)。
-- **CI 全量回归**:`test_e2e.py` 聚合漏掉 `test_port_probe.py`(11 项,覆盖
-  端口预检与 v0.5.2 端口持久化),CI 此前只跑 109/120——已补齐聚合。
-  Tests: +5(config_manager 迁移/替换/注释误判),125 total,all pass。
+- **connect codex 迁移自愈**:旧版(≤v0.3)一键接入把 `model_provider` 根键
+  误写入 provider 表内,Codex 实际未切换。现在 `apply()` 识别坏配置并自愈
+  (补根键 + 清表内残留 + 先备份);applied 判断升级为"根键 + 表"双重确认。
+- **CI 全量回归**:`test_e2e.py` 聚合漏掉 `test_port_probe.py`(11 项),
+  CI 此前只跑 109/120——已补齐。
 
 ## [0.5.3] - 2026-08-27
 
@@ -63,18 +77,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 测试断言修正:LaunchAgent plist 命令路径接受连字符(`…/llm-sanitizer`,pip/pipx 脚本)
   与下划线(`python3 -m llm_sanitizer`,install.sh 兜底)两种形式——原断言只认下划线,
   在装有独立脚本的机器上误报。
-
-## [Unreleased] — 0.6.0
-
-### Added
-
-- **English rules (v0.5 candidate, landed post-0.5.0)**: US SSN (`XXX-XX-XXXX`
-  with strict structure check — area 001–899 excluding 666, non-zero group/
-  serial) as new category `SSN`; international passport numbers via strong
-  context (`Passport no./护照号/旅行证件` + format: `N1234567`,
-  `NB12345678`, `AB123456`, `12345678X`) merged into `证件号`. Format-only
-  patterns stay context-gated to avoid order-number false positives. Tests:
-  +13 cases (hits + 7 FP samples). Categories now 16.
 
 ## [0.5.0] - 2026-08-27
 

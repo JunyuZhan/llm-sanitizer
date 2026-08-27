@@ -3,6 +3,7 @@
 用临时 HOME 模拟 ~/.codex/config.toml,不触碰真实环境。
 """
 
+import json
 import os
 import sys
 import tempfile
@@ -174,6 +175,58 @@ class TestConfigManager(unittest.TestCase):
     def test_apply_unsupported_agent(self):
         with self.assertRaises(ValueError):
             cm.apply("openclaw")
+
+    # ---- v0.6:Agent 扫描扩展 + Claude Code 自动接入 + 动态端口 ----
+
+    def test_detect_scans_all_common_agents(self):
+        """detect_agents 覆盖常见 AI 工具(配置或 CLI 任一命中即 detected)。"""
+        agents = {a["id"]: a for a in cm.detect_agents()}
+        for pid in ("codex", "claude", "gemini", "workbuddy", "openclaw", "opencode"):
+            self.assertIn(pid, agents, f"缺少检测项 {pid}")
+        self.assertTrue(agents["claude"]["auto"], "Claude Code 应支持一键接入")
+        self.assertFalse(agents["gemini"]["auto"])
+
+    def test_claude_detected_via_config(self):
+        p = Path(self.home) / ".claude" / "settings.json"
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text('{"model": "opus"}', encoding="utf-8")
+        agents = {a["id"]: a for a in cm.detect_agents()}
+        self.assertTrue(agents["claude"]["detected"])
+        self.assertFalse(agents["claude"]["applied"])
+
+    def test_apply_claude_writes_env_and_restores(self):
+        p = Path(self.home) / ".claude" / "settings.json"
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text('{"model": "opus", "permissions": {"allow": ["Bash"]}}', encoding="utf-8")
+        r = cm.apply("claude")
+        self.assertTrue(r["applied"])
+        self.assertFalse(r["already"])
+        obj = json.loads(p.read_text(encoding="utf-8"))
+        self.assertEqual(obj["env"]["ANTHROPIC_BASE_URL"], "http://127.0.0.1:8790/v1")
+        self.assertIn("permissions", obj, "原字段必须保留")
+        # 检测到已接入
+        agents = {a["id"]: a for a in cm.detect_agents()}
+        self.assertTrue(agents["claude"]["applied"])
+        # 幂等
+        r2 = cm.apply("claude")
+        self.assertTrue(r2["already"])
+        # 还原
+        cm.restore("claude")
+        self.assertEqual(json.loads(p.read_text(encoding="utf-8")), {"model": "opus", "permissions": {"allow": ["Bash"]}})
+
+    def test_apply_claude_missing_config_raises(self):
+        with self.assertRaises(FileNotFoundError):
+            cm.apply("claude")
+
+    def test_codex_uses_persisted_port(self):
+        """v0.6:接入写入的 base_url 用持久化端口,而非写死 8790。"""
+        os.environ["LLM_SANITIZER_PORT"] = "8792"
+        try:
+            cm.apply("codex")
+        finally:
+            os.environ.pop("LLM_SANITIZER_PORT", None)
+        text = self.codex.read_text(encoding="utf-8")
+        self.assertIn('base_url = "http://127.0.0.1:8792/v1"', text)
 
 
 if __name__ == "__main__":

@@ -12,6 +12,7 @@
 OpenClaw 配置格式多变,自动写入留待社区贡献(检测与手动指引可用)。
 """
 
+import json
 import os
 import re
 import shutil
@@ -20,16 +21,20 @@ from pathlib import Path
 
 from . import config
 
-GATEWAY_BASE = "http://127.0.0.1:8790/v1"
+def _gateway_base() -> str:
+    """网关 base_url,动态取持久化端口(settings.json/env 可能已改默认 8790)。"""
+    return f"http://127.0.0.1:{config.gateway_port()}/v1"
 
 # Codex config.toml 片段。
 # 注意 TOML 规范:根级键(model_provider)必须声明在任何 [table] 头之前——
 # 追加到文件末尾会落入最后一个表内,导致一键接入"显示成功、实际不生效"。
 # 因此 apply() 把根键插入首个 '[' 之前,provider 表追加到末尾。
-CODEX_MODEL_PROVIDER_TABLE = """\
+def _codex_provider_table() -> str:
+    base = _gateway_base()
+    return f"""\
 [model_providers.llm-sanitizer]
 name = "LLM Sanitizer"
-base_url = "http://127.0.0.1:8790/v1"
+base_url = "{base}"
 env_key = "LLM_SANITIZER_KEY"
 wire_api = "responses"
 """
@@ -96,40 +101,76 @@ def _config_path(agent_id):
     home = Path.home()
     if agent_id == "codex":
         return home / ".codex" / "config.toml"
+    if agent_id == "claude":
+        return home / ".claude" / "settings.json"
+    if agent_id == "gemini":
+        return home / ".gemini" / "settings.json"
+    if agent_id == "workbuddy":
+        return home / ".workbuddy"
     if agent_id == "openclaw":
         return home / ".openclaw" / "config.json"
+    if agent_id == "opencode":
+        return home / ".opencode"
     return None
 
 
+# 检测矩阵:(id, 显示名, 配置路径, CLI 名, 是否支持自动接入)
+_AGENT_PROBES = [
+    ("codex", "Codex CLI", ".codex/config.toml", "codex", True),
+    ("claude", "Claude Code", ".claude/settings.json", "claude", True),
+    ("gemini", "Gemini CLI", ".gemini/settings.json", "gemini", False),
+    ("workbuddy", "WorkBuddy", ".workbuddy", "workbuddy", False),
+    ("openclaw", "OpenClaw", ".openclaw/config.json", "openclaw", False),
+    ("opencode", "OpenCode", ".opencode", "opencode", False),
+]
+
+
+def _claude_applied(text: str) -> bool:
+    """Claude Code 是否已接入:env.ANTHROPIC_BASE_URL 指向本机网关。"""
+    try:
+        obj = json.loads(text)
+        base = (obj.get("env") or {}).get("ANTHROPIC_BASE_URL") or ""
+    except Exception:
+        return False
+    return base.startswith("http://127.0.0.1:") or base.startswith("http://localhost:")
+
+
 def detect_agents() -> list:
-    """检测本机常见 Agent 的配置文件(只读),返回:
+    """检测本机常见 AI 工具(Agent)的安装情况(只读),返回:
     [{"id", "name", "detected", "applied", "auto", "path"}, ...]
-    auto=True 表示支持一键接入(Codex);OpenClaw 需手动配置。
+
+    detected = 配置文件存在 或 CLI 在 PATH;applied = 已接入本网关。
+    auto=True 表示支持一键接入(Codex TOML / Claude Code JSON);
+    其余检测展示、手动配置(Gemini 等接入方式待版本完善)。
     """
     home = Path.home()
-    probes = [
-        ("codex", "Codex", home / ".codex" / "config.toml", True),
-        ("openclaw", "OpenClaw", home / ".openclaw" / "config.json", False),
-    ]
     result = []
-    for pid, name, path, auto in probes:
+    for pid, name, rel, cli, auto in _AGENT_PROBES:
+        path = _config_path(pid)
+        exists = path is not None and path.exists()
+        has_cli_cmd = shutil.which(cli) is not None
+        detected = exists or has_cli_cmd
         applied = False
-        if path.exists():
+        if exists:
             try:
                 text = path.read_text(encoding="utf-8", errors="ignore")
-                applied = (
-                    "[model_providers.llm-sanitizer]" in text
-                    and _root_model_provider(text) == "llm-sanitizer"
-                )
+                if pid == "codex":
+                    applied = (
+                        "[model_providers.llm-sanitizer]" in text
+                        and _root_model_provider(text) == "llm-sanitizer"
+                    )
+                elif pid == "claude" and path.name == "settings.json":
+                    applied = _claude_applied(text)
             except Exception:
                 pass
         result.append({
             "id": pid,
             "name": name,
-            "detected": path.exists(),
+            "detected": detected,
             "applied": applied,
             "auto": auto,
-            "path": str(path),
+            "path": str(path) if path else "",
+            "cli": has_cli_cmd,
         })
     return result
 
@@ -177,8 +218,10 @@ def apply(agent_id) -> dict:
     缺失(旧 connect 把键写进了表内,Codex 实际未切换),重跑 connect 会
     补上根键并保留表;根级已声明其他 provider(如 openai)则替换为
     llm-sanitizer(原值可由 disconnect 从备份还原)。"""
+    if agent_id == "claude":
+        return _apply_claude()
     if agent_id != "codex":
-        raise ValueError(f"暂不支持自动接入 {agent_id}(OpenClaw 请手动配置)")
+        raise ValueError(f"暂不支持自动接入 {agent_id}(请手动配置)")
     src = _config_path("codex")
     if not src or not src.exists():
         raise FileNotFoundError("未找到 ~/.codex/config.toml")
@@ -207,13 +250,59 @@ def apply(agent_id) -> dict:
     else:
         if not new_text.endswith("\n"):
             new_text += "\n"
-        new_text += "\n" + CODEX_MODEL_PROVIDER_TABLE
+        new_text += "\n" + _codex_provider_table()
     src.write_text(new_text, encoding="utf-8")
     try:
         os.chmod(src, 0o600)
     except OSError:
         pass
     return {"applied": True, "already": False, "backup": str(bak)}
+
+
+def _apply_claude() -> dict:
+    """Claude Code 一键接入:settings.json 写入 env.ANTHROPIC_BASE_URL 指向本网关。
+
+    保留用户原有字段(模型、权限等),只合并 env;已接入则幂等跳过。
+    """
+    src = _config_path("claude")
+    if not src or not src.exists():
+        raise FileNotFoundError("未找到 ~/.claude/settings.json")
+    base = _gateway_base()
+    try:
+        obj = json.loads(src.read_text(encoding="utf-8"))
+        if not isinstance(obj, dict):
+            obj = {}
+    except Exception:
+        obj = {}
+    env = obj.get("env") or {}
+    if isinstance(env, dict) and env.get("ANTHROPIC_BASE_URL") == base:
+        return {"applied": True, "already": True, "backup": ""}
+    bak = backup("claude")
+    env = dict(env)
+    env["ANTHROPIC_BASE_URL"] = base
+    env["ANTHROPIC_AUTH_TOKEN"] = "llm-sanitizer-local"  # 网关仅做本地校验,不真正鉴权
+    obj["env"] = env
+    _atomic_write_json(src, obj)
+    return {"applied": True, "already": False, "backup": str(bak)}
+
+
+def _atomic_write_json(path: Path, obj: dict) -> None:
+    """原子写 JSON + chmod 600(与 config.save_settings 同语义)。"""
+    import tempfile
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=".settings-")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(obj, f, ensure_ascii=False, indent=2)
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
 
 
 def restore(agent_id) -> dict:

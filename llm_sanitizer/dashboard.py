@@ -100,28 +100,15 @@ PAGE = """<!DOCTYPE html>
   </div>
 
   <div class="panel" id="guide">
-    <h3>接入引导(检测 + 手动指引)</h3>
+    <h3>本机 AI 工具(点一下即可开启脱敏,已自动备份,随时可关)</h3>
     <div id="agents">检测中…</div>
-    <h3 style="margin-top:14px">Codex 手动接入步骤</h3>
-    <ol style="font-size:13px;color:#475467;padding-left:20px;margin:8px 0">
-      <li>编辑 <code class="mono">~/.codex/config.toml</code>(先备份)</li>
-      <li>追加以下配置片段并保存</li>
-    </ol>
-    <pre>export LLM_SANITIZER_KEY="你的上游API密钥"
-# ~/.codex/config.toml 追加(注意:model_provider 是根级键,
-# 必须放在文件最顶部、任何 [table] 之前):
-model_provider = "llm-sanitizer"
-
-[model_providers.llm-sanitizer]
-name = "LLM Sanitizer"
-base_url = "http://127.0.0.1:8790/v1"
-env_key = "LLM_SANITIZER_KEY"
-wire_api = "responses"</pre>
-    <p style="font-size:13px;color:#475467">3. 重启 Codex,发送一条含测试隐私的消息(如"申请人张三,电话 13912345678"),回到本页确认下方事件区出现脱敏记录。</p>
+    <p style="font-size:12px;color:#98a2b3;margin-top:6px">检测依据:已安装的 CLI 与配置文件。开启后该工具的 AI 流量将经本网关脱敏后转发,关闭即还原原配置。</p>
   </div>
 
   <div class="panel" id="settings">
     <h3>设置</h3>
+    <details>
+      <summary style="cursor:pointer;font-size:13px;color:#475467;margin-bottom:8px">高级设置(代理上游 / 密钥 / 类别)</summary>
     <form id="form">
       <label>上游 LLM 地址</label>
       <input type="text" id="upstream" placeholder="https://api.deepseek.com">
@@ -140,6 +127,7 @@ wire_api = "responses"</pre>
         <span class="ok" id="saved"></span>
       </div>
     </form>
+    </details>
   </div>
 
   <div class="panel" id="wordlist">
@@ -195,26 +183,29 @@ function refresh() {
 function loadAgents() {
   fetch('/api/agents').then(r=>r.json()).then(d=>{
     document.getElementById('agents').innerHTML = d.agents.map(a => {
-      let action = '';
-      if (a.detected && a.auto) {
-        if (a.applied) {
-          action = ' <button class="btn" onclick="agentAction(\'restore\',\'' + a.id + '\')">一键还原</button>';
-        } else {
-          action = ' <button class="btn btn-p" onclick="agentAction(\'apply\',\'' + a.id + '\')">一键接入</button>';
-        }
-      } else if (a.detected) {
-        action = ' <span class="tag">需手动配置</span>';
+      let badge, action = '';
+      if (!a.detected) {
+        badge = '<span class="det n">未安装</span>';
+      } else if (a.applied) {
+        badge = '<span class="det y">脱敏已开启</span>';
+        action = ' <button class="btn" onclick="agentAction(\'restore\',\'' + a.id + '\')">关闭脱敏</button>';
+      } else if (a.auto) {
+        badge = '<span class="det y">已检测到</span>';
+        action = ' <button class="btn btn-p" onclick="agentAction(\'apply\',\'' + a.id + '\')">开启脱敏</button>';
+      } else {
+        badge = '<span class="det y">已检测到</span><span class="tag">需手动配置</span>';
       }
       return '<div class="agent"><span>' + a.name +
-        ' <span class="det ' + (a.detected?'y':'n') + '">' + (a.detected ? '已检测到' : '未检测到') +
-        (a.applied ? ' · 已接入' : '') + '</span></span>' + action + '</div>';
+        ' ' + badge +
+        (a.cli ? ' <span style="color:#98a2b3;font-size:12px">CLI 已安装</span>' : '') +
+        '</span>' + action + '</div>';
     }).join('');
   }).catch(()=>{ document.getElementById('agents').textContent = '检测失败'; });
 }
 
 function agentAction(kind, id) {
-  const verb = kind === 'apply' ? '修改 ' + id + ' 的配置文件(自动备份,可一键还原)' : '用备份还原 ' + id + ' 的配置';
-  if (!confirm('确认' + verb + '?')) return;
+  const verb = kind === 'apply' ? '对 ' + id + ' 开启脱敏?(自动备份原配置,可随时关闭还原)' : '对 ' + id + ' 关闭脱敏?(还原原配置)';
+  if (!confirm('确认' + verb)) return;
   fetch('/api/agents/' + kind, {
     method: 'POST',
     headers: {'Content-Type':'application/json','X-Local-Token':'local'},
