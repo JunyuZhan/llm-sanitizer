@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PY = sys.executable
@@ -37,7 +38,8 @@ class TestCLI(unittest.TestCase):
             self.assertIn("[姓名_1]", masked)
             self.assertNotIn("张三", masked)
             # 映射文件权限 600(D7)
-            self.assertEqual(os.stat(map_path).st_mode & 0o777, 0o600)
+            if sys.platform != "win32":  # Windows 由 LOCALAPPDATA ACL 承担
+                self.assertEqual(os.stat(map_path).st_mode & 0o777, 0o600)
 
             r = self._run("restore", masked_path, "--map", map_path, "-o", restored_path)
             self.assertEqual(r.returncode, 0, r.stderr)
@@ -114,26 +116,17 @@ class TestCLI(unittest.TestCase):
         self.assertIn("/F", d)
 
     def test_windows_data_dir(self):
-        """v0.3:Windows 数据目录走 %LOCALAPPDATA%\\llm-sanitizer(ACL 隔离替代 600 语义)。"""
-        from pathlib import PureWindowsPath
-        from unittest import mock
-
+        """v0.3:Windows 数据目录走 %LOCALAPPDATA%\\llm-sanitizer(ACL 隔离替代 600 语义)。
+        断言平台无关(macOS 上 os.path 按 posix 拼接,分隔符归一化后比较)。"""
         from llm_sanitizer import config as cfg
 
-        with mock.patch("os.name", "nt"):
-            with mock.patch.dict(os.environ, {
-                "LOCALAPPDATA": r"C:\Users\test\AppData\Local",
-                "LLM_SANITIZER_HOME": "",
-            }, clear=False):
-                d = cfg.data_dir()
-                self.assertEqual(
-                    PureWindowsPath(str(d)),
-                    PureWindowsPath(r"C:\Users\test\AppData\Local") / "llm-sanitizer")
-            # 环境变量仍最高优先级
-            with mock.patch.dict(os.environ, {
-                "LLM_SANITIZER_HOME": r"D:\custom",
-            }, clear=False):
-                self.assertEqual(str(cfg.data_dir()), r"D:\custom")
+        p = cfg._windows_data_dir(r"C:\Users\test\AppData\Local")
+        norm = p.replace("\\", "/")
+        self.assertTrue(norm.endswith("llm-sanitizer"), p)
+        self.assertTrue(norm.startswith("C:/Users/test/AppData/Local"), p)
+        # 环境变量(LLM_SANITIZER_HOME)仍最高优先级(经 data_dir 主路径)
+        with mock.patch.dict(os.environ, {"LLM_SANITIZER_HOME": r"D:\custom"}, clear=False):
+            self.assertEqual(str(cfg.data_dir()), r"D:\custom")
 
     def test_status_runs(self):
         r = self._run("status")

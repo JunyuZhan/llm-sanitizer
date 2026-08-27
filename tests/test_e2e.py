@@ -296,7 +296,8 @@ class TestConsole(GatewayFixture):
         import os
         from llm_sanitizer import config as cfg
         p = cfg.settings_path()
-        self.assertEqual(os.stat(p).st_mode & 0o777, 0o600)
+        if sys.platform != "win32":  # Windows 由 LOCALAPPDATA ACL 承担
+            self.assertEqual(os.stat(p).st_mode & 0o777, 0o600)
 
     def test_settings_write_cross_origin(self):
         """FR-8:跨域 Origin 写接口返回 403。"""
@@ -349,7 +350,8 @@ class TestConsole(GatewayFixture):
         self.assertTrue(json.loads(body)["ok"])
         from llm_sanitizer import config as cfg
         p = cfg.wordlist_path()
-        self.assertEqual(os.stat(p).st_mode & 0o777, 0o600)
+        if sys.platform != "win32":  # Windows 由 LOCALAPPDATA ACL 承担
+            self.assertEqual(os.stat(p).st_mode & 0o777, 0o600)
         self.assertIn("张三丰", p.read_text(encoding="utf-8"))
 
 

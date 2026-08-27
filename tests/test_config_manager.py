@@ -51,8 +51,9 @@ class TestConfigManager(unittest.TestCase):
         self.assertIn('base_url = "http://127.0.0.1:8790/v1"', text)
         self.assertIn('model_provider = "llm-sanitizer"', text)
         self.assertIn(self.orig, text, "原配置内容必须保留")
-        # 备份权限 600
-        self.assertEqual(os.stat(r["backup"]).st_mode & 0o777, 0o600)
+        # 备份权限 600(Windows 由 LOCALAPPDATA ACL 承担)
+        if sys.platform != "win32":
+            self.assertEqual(os.stat(r["backup"]).st_mode & 0o777, 0o600)
 
     def test_apply_idempotent(self):
         cm.apply("codex")

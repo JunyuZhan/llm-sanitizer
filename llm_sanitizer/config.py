@@ -9,6 +9,12 @@ import tempfile
 from pathlib import Path
 
 
+def _windows_data_dir(localappdata=None) -> str:
+    """Windows 数据目录字符串:%LOCALAPPDATA%\\llm-sanitizer(纯函数,可测)。"""
+    base = localappdata or os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
+    return os.path.join(base, "llm-sanitizer")
+
+
 def data_dir() -> Path:
     """数据目录:LLM_SANITIZER_HOME 优先;Windows 用 %LOCALAPPDATA%\\llm-sanitizer
     (用户私有目录自带 ACL 隔离,承担 map.json 600 权限的语义);其余 ~/.llm-sanitizer。"""
@@ -16,8 +22,7 @@ def data_dir() -> Path:
     if env:
         return Path(env)
     if os.name == "nt":
-        base = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
-        return Path(os.path.join(base, "llm-sanitizer"))
+        return Path(_windows_data_dir())
     return Path.home() / ".llm-sanitizer"
 
 

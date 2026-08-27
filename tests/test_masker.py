@@ -101,8 +101,9 @@ class TestRules(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             path = os.path.join(d, "map.json")
             m.save(path)
-            mode = os.stat(path).st_mode & 0o777
-            self.assertEqual(mode, 0o600, f"map.json 权限应为 600,实际 {oct(mode)}")
+            if sys.platform != "win32":  # Windows 权限语义由 LOCALAPPDATA ACL 承担
+                mode = os.stat(path).st_mode & 0o777
+                self.assertEqual(mode, 0o600, f"map.json 权限应为 600,实际 {oct(mode)}")
             # 可重新加载
             m2 = Masker()
             with open(path, encoding="utf-8") as f:
