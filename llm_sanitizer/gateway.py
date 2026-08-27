@@ -3,8 +3,11 @@
 支持 OpenAI Responses API 与 Chat Completions，含 SSE 流式。
 """
 
+from __future__ import annotations  # Python 3.9 兼容(PEP 604 联合注解延迟求值)
+
 import json
 import os
+import socket
 import sys
 import tempfile
 import threading
@@ -543,6 +546,27 @@ def create_gateway_server(port=None):
     return ThreadingHTTPServer(
         (config.host(), port if port is not None else config.gateway_port()), GatewayHandler
     )
+
+
+def probe_port(port: int) -> str | None:
+    """探测端口上的服务归属: 'self'(LLM Sanitizer 网关/看板) |
+    'other'(其他程序) | None(空闲)。
+
+    依据 Server 响应头前缀(LLMSanitizer/)识别——跨版本稳定
+    (gateway=LLMSanitizer/0.1, dashboard=LLMSanitizerDashboard/0.1)。
+    """
+    try:
+        with socket.create_connection(("127.0.0.1", port), timeout=1.5) as s:
+            s.sendall(b"GET / HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n")
+            data = b""
+            while b"\r\n\r\n" not in data:
+                chunk = s.recv(512)
+                if not chunk:
+                    break
+                data += chunk
+            return "self" if b"LLMSanitizer" in data else "other"
+    except Exception:
+        return None
 
 
 # 模块级:SSE 事件还原(协议感知,便于单测)——原为 GatewayHandler 方法,提级后不截断类定义

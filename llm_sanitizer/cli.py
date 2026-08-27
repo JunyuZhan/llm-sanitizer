@@ -60,6 +60,11 @@ def _check_port(port):
         return False
 
 
+def _probe_port(port):
+    """探测端口上运行的服务归属,见 gateway.probe_port。"""
+    return gateway.probe_port(port)
+
+
 def cmd_start(args):
     config.ensure_dirs()
     # 组织策略留存:启动时清理超过 retention_days 的事件文件(静默,不阻塞)
@@ -69,13 +74,37 @@ def cmd_start(args):
         cleanup_old_events(str(config.events_path()), config.retention_days())
     except Exception:
         pass
+    gw_port = int(args.port) if getattr(args, "port", None) else config.gateway_port()
+    db_port = int(args.dashboard_port) if getattr(args, "dashboard_port", None) else config.dashboard_port()
+    # 端口预检:已被占用时给出可操作提示,而不是裸 traceback
+    gw_state = _probe_port(gw_port)
+    if gw_state == "self":
+        print(f"[llm-sanitizer] 网关已在运行(端口 {gw_port}),无需重复启动。")
+        print(f"[llm-sanitizer] 看板  http://127.0.0.1:{db_port}")
+        print(f"[llm-sanitizer] 查看状态: llm-sanitizer status")
+        return
+    if gw_state == "other":
+        print(f"[llm-sanitizer] 端口 {gw_port} 已被其他程序占用,网关无法启动。")
+        print(f"[llm-sanitizer] 换端口启动: llm-sanitizer start --port 8792")
+        print(f"[llm-sanitizer] 或先停掉占用 {gw_port} 端口的程序再重试。")
+        return
+    db_state = _probe_port(db_port)
+    if db_state == "other":
+        print(f"[llm-sanitizer] 看板端口 {db_port} 已被其他程序占用。")
+        print(f"[llm-sanitizer] 换端口启动: llm-sanitizer start --dashboard-port 8792")
+        return
     gateway.init_state()
-    gs = gateway.create_gateway_server()
-    ds = dashboard.create_dashboard_server()
+    try:
+        gs = gateway.create_gateway_server(port=gw_port)
+        ds = dashboard.create_dashboard_server(port=db_port)
+    except OSError as e:
+        print(f"[llm-sanitizer] 启动失败:端口不可用({e}).")
+        print(f"[llm-sanitizer] 换端口启动: llm-sanitizer start --port 8792")
+        return
     threading.Thread(target=gs.serve_forever, daemon=True).start()
     threading.Thread(target=ds.serve_forever, daemon=True).start()
-    print(f"[llm-sanitizer] 网关  http://127.0.0.1:{config.gateway_port()}/v1")
-    print(f"[llm-sanitizer] 看板  http://127.0.0.1:{config.dashboard_port()}")
+    print(f"[llm-sanitizer] 网关  http://127.0.0.1:{gw_port}/v1")
+    print(f"[llm-sanitizer] 看板  http://127.0.0.1:{db_port}")
     print(f"[llm-sanitizer] 上游  {config.upstream()}")
     print("[llm-sanitizer] Ctrl+C 退出")
     if os.environ.get("LLM_SANITIZER_CHECK_UPDATE", "1") != "0":
@@ -390,7 +419,9 @@ def main():
                 pass
     ap = argparse.ArgumentParser(description="LLM Sanitizer - 本地 AI 流量隐私网关")
     sub = ap.add_subparsers(dest="cmd")
-    sub.add_parser("start", help="前台启动网关与看板")
+    p_start = sub.add_parser("start", help="前台启动网关与看板")
+    p_start.add_argument("--port", type=int, help="网关端口(默认 8790)")
+    p_start.add_argument("--dashboard-port", type=int, help="看板端口(默认 8791)")
     sub.add_parser("desktop", help="桌面窗口模式(需 pip install llm-sanitizer-gateway[desktop])")
     sub.add_parser("status", help="查看状态与统计")
     p_mask = sub.add_parser("mask", help="单文件脱敏")

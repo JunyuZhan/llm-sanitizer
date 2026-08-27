@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2026-08-27
+
+### Fixed
+
+- **`start` 端口占用友好处理(取代裸 traceback)**:启动前探测网关/看板端口归属
+  (`gateway.probe_port`,依据 `Server: LLMSanitizer/…` 响应头前缀识别,
+  跨版本稳定,能认出旧实例)。三种情形都给可操作中文提示:已在运行 →
+  "无需重复启动,用 status 查看";被其他程序占用 → 给出换端口命令;空闲 → 正常启动。
+  `desktop` 命令同样处理。
+- **`start --port N` / `start --dashboard-port N`**:端口冲突时可换端口启动
+  (之前参数不存在,冲突只能靠停掉别的程序)。
+- 启动路径的 OSError 兜底:即便预检与绑定之间有竞态,也只打印友好提示而非 traceback。
+- Tests: +5(`probe_port` 空闲/他服务/自家网关三态;`cmd_start` 已在运行/网关被占/
+  看板被占/正常启动/显式端口五分支),113 total。
+- 测试断言修正:LaunchAgent plist 命令路径接受连字符(`…/llm-sanitizer`,pip/pipx 脚本)
+  与下划线(`python3 -m llm_sanitizer`,install.sh 兜底)两种形式——原断言只认下划线,
+  在装有独立脚本的机器上误报。
+
 ## [Unreleased] — 0.6.0
 
 ### Added

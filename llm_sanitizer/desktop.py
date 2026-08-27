@@ -42,9 +42,28 @@ def run() -> bool:
     except ImportError:
         return False
     config.ensure_dirs()
+    # 端口预检:占用时给出可操作提示,而不是裸 traceback
+    gw_state = gateway.probe_port(config.gateway_port())
+    if gw_state == "self":
+        print(f"[llm-sanitizer] 网关已在运行(端口 {config.gateway_port()}),无需重复启动。")
+        print(f"[llm-sanitizer] 看板  http://127.0.0.1:{config.dashboard_port()}")
+        return True
+    if gw_state == "other":
+        print(f"[llm-sanitizer] 端口 {config.gateway_port()} 已被其他程序占用,桌面模式无法启动。")
+        print(f"[llm-sanitizer] 先停掉占用该端口的程序,或用 llm-sanitizer start --port 8792")
+        return False
+    db_state = gateway.probe_port(config.dashboard_port())
+    if db_state == "other":
+        print(f"[llm-sanitizer] 看板端口 {config.dashboard_port()} 已被其他程序占用,桌面模式无法启动。")
+        print(f"[llm-sanitizer] 先停掉占用该端口的程序,或用 llm-sanitizer start --dashboard-port 8792")
+        return False
     gateway.init_state()
-    gs = gateway.create_gateway_server()
-    ds = dashboard.create_dashboard_server()
+    try:
+        gs = gateway.create_gateway_server()
+        ds = dashboard.create_dashboard_server()
+    except OSError as e:
+        print(f"[llm-sanitizer] 启动失败:端口不可用({e}).")
+        return False
     threading.Thread(target=gs.serve_forever, daemon=True).start()
     threading.Thread(target=ds.serve_forever, daemon=True).start()
     url = f"http://127.0.0.1:{config.dashboard_port()}"

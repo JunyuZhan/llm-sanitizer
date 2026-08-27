@@ -120,7 +120,12 @@ class TestCLI(unittest.TestCase):
                 tree = ET.parse(plist)  # 非法 XML 在此抛 ParseError
                 strings = [s.text for s in tree.iter("string")]
                 self.assertIn("start", strings, f"ProgramArguments 缺 start: {strings}")
-                self.assertIn("llm_sanitizer", strings)
+                # 命令路径可为 `…/llm-sanitizer`(pip/pipx 脚本,连字符)或
+                # `python3 -m llm_sanitizer`(install.sh 兜底,下划线模块名)——两者皆可
+                self.assertTrue(
+                    any("llm-sanitizer" in s or "llm_sanitizer" in s for s in strings),
+                    f"ProgramArguments 缺命令路径: {strings}",
+                )
                 # 不允许残留字面量 \\n(旧 bug 特征)
                 raw = open(plist, encoding="utf-8").read()
                 self.assertNotIn("\\n", raw)
