@@ -234,7 +234,9 @@ class TestConsole(GatewayFixture):
         orig = '[model]\nname = "gpt-4o"\n'
         cfg.write_text(orig, encoding="utf-8")
         old_home = os.environ.get("HOME")
+        old_profile = os.environ.get("USERPROFILE")
         os.environ["HOME"] = self.home
+        os.environ["USERPROFILE"] = self.home  # Windows 的 Path.home() 读它
         try:
             conn = http.client.HTTPConnection("127.0.0.1", self.dport, timeout=10)
             conn.request("POST", "/api/agents/apply",
@@ -258,10 +260,11 @@ class TestConsole(GatewayFixture):
             self.assertEqual(resp.status, 200)
             self.assertEqual(cfg.read_text(encoding="utf-8"), orig, "还原后应与原文一致")
         finally:
-            if old_home is None:
-                os.environ.pop("HOME", None)
-            else:
-                os.environ["HOME"] = old_home
+            for k, v in (("HOME", old_home), ("USERPROFILE", old_profile)):
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
 
     def test_settings_get(self):
         status, body = _get(self.dport, "/api/settings")
