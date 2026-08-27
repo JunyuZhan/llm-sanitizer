@@ -65,6 +65,11 @@ def _probe_port(port):
     return gateway.probe_port(port)
 
 
+def _wait_forever():
+    """前台 start 的阻塞等待(独立函数便于测试注入退出)。"""
+    threading.Event().wait()
+
+
 def cmd_start(args):
     config.ensure_dirs()
     # 组织策略留存:启动时清理超过 retention_days 的事件文件(静默,不阻塞)
@@ -76,6 +81,13 @@ def cmd_start(args):
         pass
     gw_port = int(args.port) if getattr(args, "port", None) else config.gateway_port()
     db_port = int(args.dashboard_port) if getattr(args, "dashboard_port", None) else config.dashboard_port()
+    # 显式指定的端口写回 settings.json:下次启动/开机自启默认使用,一劳永逸
+    if getattr(args, "port", None):
+        config.set_gateway_port(gw_port)
+        print(f"[llm-sanitizer] 网关端口 {gw_port} 已保存,下次启动默认使用")
+    if getattr(args, "dashboard_port", None):
+        config.set_dashboard_port(db_port)
+        print(f"[llm-sanitizer] 看板端口 {db_port} 已保存,下次启动默认使用")
     # 端口预检:已被占用时给出可操作提示,而不是裸 traceback
     gw_state = _probe_port(gw_port)
     if gw_state == "self":
@@ -85,13 +97,13 @@ def cmd_start(args):
         return
     if gw_state == "other":
         print(f"[llm-sanitizer] 端口 {gw_port} 已被其他程序占用,网关无法启动。")
-        print(f"[llm-sanitizer] 换端口启动: llm-sanitizer start --port 8792")
-        print(f"[llm-sanitizer] 或先停掉占用 {gw_port} 端口的程序再重试。")
+        print(f"[llm-sanitizer] 换端口启动(端口会记住,之后直接 start 即可):")
+        print(f"[llm-sanitizer]   llm-sanitizer start --port 8792")
         return
     db_state = _probe_port(db_port)
     if db_state == "other":
         print(f"[llm-sanitizer] 看板端口 {db_port} 已被其他程序占用。")
-        print(f"[llm-sanitizer] 换端口启动: llm-sanitizer start --dashboard-port 8792")
+        print(f"[llm-sanitizer] 换端口启动(端口会记住): llm-sanitizer start --dashboard-port 8792")
         return
     gateway.init_state()
     try:
@@ -111,7 +123,7 @@ def cmd_start(args):
         # 后台检查更新;隐私敏感可 LLM_SANITIZER_CHECK_UPDATE=0 关闭
         threading.Thread(target=_print_update_hint, daemon=True).start()
     try:
-        threading.Event().wait()
+        _wait_forever()
     except KeyboardInterrupt:
         print("\n[llm-sanitizer] 退出")
         gs.shutdown()

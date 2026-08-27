@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.2] - 2026-08-27
+
+### Added
+
+- **端口选择持久化**:`start --port N` / `--dashboard-port N` 一次,端口写回
+  `settings.json`(原子写 + 600),之后 `llm-sanitizer start`、开机自启
+  (`install`)、`status`、`connect` 全部默认用新端口——换端口从此只需一次,
+  不再每次手动带参。优先级:环境变量 > settings > 默认(环境变量保留运维/测试覆盖能力)。
+
+### Fixed
+
+- 测试修复:`threading.Event` 被全局替换为 FakeEvent 会破坏 `Thread._started`
+  内部协议,导致 KeyboardInterrupt 泄漏、pytest 提前中止(5/11 收集项未执行、
+  全量误报 113 而非 119)。改为给 `cmd_start` 提取 `_wait_forever()`,测试只
+  patch 它,不再触碰 threading 内部。Tests: +3(端口持久化读写/环境变量覆盖/
+  cmd_start 写回),119 total。
+
 ## [0.5.1] - 2026-08-27
 
 ### Fixed

@@ -115,13 +115,6 @@ class TestCmdStartPortChecks(unittest.TestCase):
     def test_normal_start(self):
         """全空闲:正常启动并打印地址;Ctrl+C 退出不崩。"""
 
-        class FakeEvent:
-            def is_set(self):
-                return False
-
-            def wait(self):
-                raise KeyboardInterrupt()
-
         class FakeServer:
             def serve_forever(self):
                 pass
@@ -135,7 +128,8 @@ class TestCmdStartPortChecks(unittest.TestCase):
                                return_value=FakeServer()), \
              mock.patch.object(self.cli.dashboard, "create_dashboard_server",
                                return_value=FakeServer()), \
-             mock.patch.object(self.cli.threading, "Event", FakeEvent), \
+             mock.patch.object(self.cli, "_wait_forever",
+                               side_effect=KeyboardInterrupt), \
              contextlib.redirect_stdout(buf):
             self.cli.cmd_start(SimpleNamespace(port=None, dashboard_port=None))
         out = buf.getvalue()
@@ -144,13 +138,6 @@ class TestCmdStartPortChecks(unittest.TestCase):
 
     def test_start_with_explicit_ports(self):
         """--port/--dashboard-port 生效:create_*_server 收到指定端口。"""
-
-        class FakeEvent:
-            def is_set(self):
-                return False
-
-            def wait(self):
-                raise KeyboardInterrupt()
 
         class FakeServer:
             def serve_forever(self):
@@ -165,11 +152,68 @@ class TestCmdStartPortChecks(unittest.TestCase):
                                return_value=FakeServer()) as m_gw, \
              mock.patch.object(self.cli.dashboard, "create_dashboard_server",
                                return_value=FakeServer()) as m_db, \
-             mock.patch.object(self.cli.threading, "Event", FakeEvent), \
+             mock.patch.object(self.cli, "_wait_forever",
+                               side_effect=KeyboardInterrupt), \
              contextlib.redirect_stdout(io.StringIO()):
             self.cli.cmd_start(SimpleNamespace(port=gw_port, dashboard_port=db_port))
         self.assertEqual(m_gw.call_args.kwargs.get("port"), gw_port)
         self.assertEqual(m_db.call_args.kwargs.get("port"), db_port)
+
+
+class TestPortPersistence(unittest.TestCase):
+    """settings.json 端口持久化(v0.5.2):start --port 一次,之后默认生效。"""
+
+    def setUp(self):
+        self._home = tempfile.mkdtemp(prefix="llms_home_")
+        self._env = mock.patch.dict(
+            os.environ,
+            {"LLM_SANITIZER_HOME": self._home},
+        )
+        # 注意:不设 LLM_SANITIZER_PORT,让 settings 路径真正生效
+        self._env.start()
+        self.addCleanup(self._env.stop)
+
+    def test_set_and_read_ports(self):
+        from llm_sanitizer import config
+
+        self.assertEqual(config.gateway_port(), 8790)  # 默认
+        self.assertEqual(config.dashboard_port(), 8791)
+        config.set_gateway_port(8792)
+        config.set_dashboard_port(8793)
+        self.assertEqual(config.gateway_port(), 8792)
+        self.assertEqual(config.dashboard_port(), 8793)
+        # 落盘文件存在且权限 600
+        self.assertTrue(os.path.exists(config.settings_path()))
+        self.assertEqual(os.stat(config.settings_path()).st_mode & 0o777, 0o600)
+
+    def test_env_still_overrides(self):
+        from llm_sanitizer import config
+
+        config.set_gateway_port(8792)
+        with mock.patch.dict(os.environ, {"LLM_SANITIZER_PORT": "8899"}):
+            self.assertEqual(config.gateway_port(), 8899)
+
+    def test_cmd_start_persists_explicit_ports(self):
+        """cmd_start --port/--dashboard-port 会把端口写回 settings.json。"""
+        from llm_sanitizer import cli, config
+
+        class FakeServer:
+            def serve_forever(self):
+                pass
+
+            def shutdown(self):
+                pass
+
+        with mock.patch.object(cli, "_probe_port", side_effect=[None, None]), \
+             mock.patch.object(cli.gateway, "create_gateway_server",
+                               return_value=FakeServer()), \
+             mock.patch.object(cli.dashboard, "create_dashboard_server",
+                               return_value=FakeServer()), \
+             mock.patch.object(cli, "_wait_forever", side_effect=KeyboardInterrupt), \
+             contextlib.redirect_stdout(io.StringIO()):
+            cli.cmd_start(SimpleNamespace(port=8792, dashboard_port=8793))
+        self.assertEqual(config.gateway_port(), 8792)
+        self.assertEqual(config.dashboard_port(), 8793)
 
 
 if __name__ == "__main__":

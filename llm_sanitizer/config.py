@@ -114,11 +114,33 @@ def save_settings(settings: dict) -> None:
 
 
 def gateway_port() -> int:
-    return int(os.environ.get("LLM_SANITIZER_PORT", "8790"))
+    """网关端口:环境变量(运维/测试覆盖) > settings.json(界面/--port 持久化) > 8790。"""
+    env = os.environ.get("LLM_SANITIZER_PORT")
+    if env:
+        return int(env)
+    return int(load_settings().get("gateway_port") or 8790)
 
 
 def dashboard_port() -> int:
-    return int(os.environ.get("LLM_SANITIZER_DASHBOARD_PORT", "8791"))
+    """看板端口:环境变量 > settings.json(--dashboard-port 持久化) > 8791。"""
+    env = os.environ.get("LLM_SANITIZER_DASHBOARD_PORT")
+    if env:
+        return int(env)
+    return int(load_settings().get("dashboard_port") or 8791)
+
+
+def set_gateway_port(port: int) -> None:
+    """持久化网关端口(start --port 写回,下次启动/开机自启默认使用)。"""
+    s = load_settings()
+    s["gateway_port"] = int(port)
+    save_settings(s)
+
+
+def set_dashboard_port(port: int) -> None:
+    """持久化看板端口(start --dashboard-port 写回)。"""
+    s = load_settings()
+    s["dashboard_port"] = int(port)
+    save_settings(s)
 
 
 def upstream() -> str:
