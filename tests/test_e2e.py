@@ -634,6 +634,7 @@ if __name__ == "__main__":
     import test_formats
     import test_masker
     import test_ocr
+    import test_policy
 
     suite = unittest.TestSuite()
     loader = unittest.defaultTestLoader
@@ -643,6 +644,7 @@ if __name__ == "__main__":
     suite.addTests(loader.loadTestsFromModule(test_formats))
     suite.addTests(loader.loadTestsFromModule(test_events))
     suite.addTests(loader.loadTestsFromModule(test_ocr))
+    suite.addTests(loader.loadTestsFromModule(test_policy))
     suite.addTests(loader.loadTestsFromModule(sys.modules[__name__]))
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     sys.exit(0 if result.wasSuccessful() else 1)

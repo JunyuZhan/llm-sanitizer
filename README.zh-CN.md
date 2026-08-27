@@ -12,7 +12,7 @@
 
 ## 项目状态
 
-> **v0.2/v0.3 已发布 · v0.4 开发中**:本地网关、15 类中文规则、实时看板/控制台、CLI、开机自启、CI 全部就绪;`pip install llm-sanitizer-gateway` 即可使用。已落地 **WebSocket 代理、自定义词表、一键接入、三大协议全覆盖、docx/xlsx/pdf 格式脱敏、Windows 支持**;v0.4 新增 **图片 OCR 脱敏**(可选依赖)。欢迎参与贡献。
+> **v0.2/v0.3/v0.4 已发布 · v0.5 开发中**:本地网关、15 类中文规则、实时看板/控制台、CLI、开机自启、CI 全部就绪;`pip install llm-sanitizer-gateway` 即可使用。已落地 **WebSocket 代理、一键接入、三大协议全覆盖、docx/xlsx/pdf 格式脱敏、Windows、图片 OCR**;v0.5 新增 **组织策略/审计导出、桌面窗口、独立可执行包**。欢迎参与贡献。
 
 ## 它解决什么问题
 
@@ -118,7 +118,8 @@ python3 -m llm_sanitizer start
 | **v0.1**(已发布) | HTTP 网关、中文规则、实时看板、安装脚本、文档、端到端测试;PyPI 发布 |
 | **v0.2(已发布)** | ✅ WebSocket 代理、✅ 自定义词表、✅ 一键接入(FR-12)、✅ 三大协议适配、✅ docx/xlsx 格式脱敏 |
 | **v0.3(已发布)** | ✅ **Windows**(%LOCALAPPDATA% 数据目录、schtasks 自启、三平台 CI)、✅ **PDF 格式脱敏** |
-| **v0.4(进行中)** | ✅ **图片 OCR 脱敏**(可选依赖 `pip install llm-sanitizer-gateway[ocr]` + tesseract);待开发:多语言规则(英文/日文)、组织策略与审计导出、规则贡献市场、桌面独立包 |
+| **v0.4(已发布)** | ✅ **图片 OCR 脱敏**(可选依赖) |
+| **v0.5(进行中)** | ✅ **组织策略**(policy.json 强制类别/留存)、✅ **审计导出**(CSV/JSON 无明文)、✅ **桌面窗口**(`pip install llm-sanitizer-gateway[desktop]`)、✅ **独立可执行包**(PyInstaller,免 Python);待开发:多语言规则、规则市场、桌面窗口打包 |
 
 ## 贡献
 

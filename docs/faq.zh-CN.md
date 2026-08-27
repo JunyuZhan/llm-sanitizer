@@ -71,6 +71,12 @@ llm-sanitizer mask 合同.jpg --redact     # 生成打码图(敏感区域涂黑,
 
 OCR 在本机运行,不产生新的出网流量。中文识别质量取决于 tesseract 语言包;打码不可逆,文本报告可还原。
 
+### 如何导出审计记录(合规留档)?
+**v0.5 起**:`llm-sanitizer audit-export` 生成 CSV(逐条)或 `--json`(含汇总),只含占位符/类别/时间/请求路径,**不含明文**;`--since YYYY-MM-DD` 按日期过滤;输出权限 600。组织可用 `~/.llm-sanitizer/policy.json` 配置事件留存天数(`retention_days`,默认 90)。
+
+### 组织策略是什么?
+**v0.5 起**:`~/.llm-sanitizer/policy.json`(权限 600)支持 `enforced_categories`(组织强制开启,用户不可关闭)、`blocked_categories`(强制关闭)、`retention_days`(事件留存)。策略优先级高于用户设置——适合律所/团队统一脱敏底线。
+
 ### 支持 Windows 吗?
 **v0.3 起支持。** `pip install llm-sanitizer-gateway` 三平台通用;数据目录用 `%LOCALAPPDATA%\llm-sanitizer`(用户私有目录自带 ACL 隔离,替代 600 权限语义);开机自启用 `llm-sanitizer install`(schtasks 登录自启,免管理员)。
 

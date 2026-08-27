@@ -71,6 +71,12 @@ llm-sanitizer mask contract.jpg --redact # redacted image (sensitive areas black
 
 OCR runs fully local — no new outbound traffic. Chinese recognition quality depends on the tesseract language pack; redaction is irreversible, the text report is restorable.
 
+### How do I export audit records (compliance)?
+**Since v0.5**: `llm-sanitizer audit-export` writes CSV (per-event) or `--json` (with summary) — placeholders/category/time/path only, **no plaintext**; `--since YYYY-MM-DD` filters by date; output is 600-perm. Organizations can set retention via `policy.json` (`retention_days`, default 90).
+
+### What is an org policy?
+**Since v0.5**: `~/.llm-sanitizer/policy.json` (600) supports `enforced_categories` (org-mandated, users can't disable), `blocked_categories` (forced off), `retention_days`. Policy overrides user settings — for law firms/teams to enforce a baseline.
+
 ### Does it support Windows?
 **Yes, since v0.3.** `pip install llm-sanitizer-gateway` works on all three platforms. Data lives in `%LOCALAPPDATA%\llm-sanitizer` (user-private ACLs replace the 600-perm semantics); auto-start via `llm-sanitizer install` (schtasks ONLOGON, no admin).
 

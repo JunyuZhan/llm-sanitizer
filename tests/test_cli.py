@@ -164,6 +164,28 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("上游", r.stdout)
 
+    def test_desktop_hint_without_extra(self):
+        """v0.5:未装 [desktop] extra 时,desktop 命令给出友好安装提示。"""
+        from llm_sanitizer import desktop
+
+        if desktop.available():
+            self.skipTest("本机已装 pywebview,跳过提示分支")
+        r = self._run("desktop")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("[desktop]", r.stdout)
+
+    def test_packaging_artifacts(self):
+        """v0.5:独立包构建脚本存在(spec 含全部模块 hiddenimports)。"""
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        spec = os.path.join(root, "packaging", "llm_sanitizer.spec")
+        build = os.path.join(root, "packaging", "build.py")
+        self.assertTrue(os.path.exists(spec), "spec 应存在")
+        self.assertTrue(os.path.exists(build), "build.py 应存在")
+        with open(spec, encoding="utf-8") as f:
+            content = f.read()
+        for mod in ("llm_sanitizer.masker", "llm_sanitizer.gateway", "llm_sanitizer.cli"):
+            self.assertIn(mod, content, f"spec 应包含 {mod}")
+
     def test_version_compare(self):
         from llm_sanitizer.cli import _version_tuple
 

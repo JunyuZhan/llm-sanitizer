@@ -17,6 +17,8 @@ from collections import deque
 
 
 class EventStore:
+    MAX_ROTATED = 3  # 保留 .1/.2/.3 三份轮转历史(审计完整性与磁盘控制平衡)
+
     def __init__(self, path, max_memory=500, rotate_bytes=5 * 1024 * 1024):
         self.path = path
         self.max_memory = max_memory
@@ -75,16 +77,26 @@ class EventStore:
             pass
 
     def _rotate(self):
-        """把当前事件文件轮转为 events.jsonl.1(保留 1 份历史),再开新文件。"""
+        """轮转:events.jsonl → .1 → .2 → .3,保留 3 份历史(最旧丢弃)。
+
+        审计导出依赖历史文件(read_all_events);单份 .1 会被下一次轮转覆盖,
+        长期审计会丢记录——递增保留至 .3(磁盘上限约 4×5MB)。
+        """
         try:
-            if os.path.exists(self.path):
-                os.replace(self.path, self.path + ".1")
+            for n in range(self.MAX_ROTATED, 0, -1):
+                src = self.path + f".{n}"
+                if os.path.exists(src):
+                    if n == self.MAX_ROTATED:
+                        os.unlink(src)  # 最旧历史丢弃
+                    else:
+                        os.replace(src, self.path + f".{n + 1}")
+            os.replace(self.path, self.path + ".1")
             open(self.path, "a", encoding="utf-8").close()
         except Exception:
             pass
 
     def add(self, kind, **fields):
-        ev = {"ts": time.strftime("%H:%M:%S"), "kind": kind}
+        ev = {"ts": time.strftime("%Y-%m-%d %H:%M:%S"), "kind": kind}  # 含日期,审计按天过滤(v0.5)
         ev.update(fields)
         with self._lock:
             self._events.append(ev)
@@ -136,6 +148,61 @@ def read_stats_file(path):
     except Exception:
         pass
     return {}
+
+
+def read_all_events(path, limit=None):
+    """审计导出:读取事件全量(主文件 + 轮转历史 .1),按时间正序返回。
+
+    与 tail_events(展示用,只读尾部)不同,审计需要完整记录——含已轮转
+    的历史事件。事件只含占位符/类别/时间/请求路径,无明文(设计约束)。
+    """
+    out = []
+    sources = []
+    if path:
+        for n in range(EventStore.MAX_ROTATED, 0, -1):  # 旧→新
+            p = str(path) + f".{n}"
+            if os.path.exists(p):
+                sources.append(p)
+        if os.path.exists(path):
+            sources.append(str(path))
+    for src in sources:
+        try:
+            with open(src, encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        try:
+                            out.append(json.loads(line))
+                        except Exception:
+                            pass
+        except Exception:
+            continue
+    if limit:
+        out = out[-limit:]
+    return out
+
+
+def cleanup_old_events(path, days):
+    """组织策略留存(FR-*):删除超过 retention_days 的事件文件(含轮转历史)。
+
+    stats.json 为累计计数,不受留存影响(审计汇总需长期累计口径)。
+    返回删除的文件路径列表。
+    """
+    removed = []
+    if not path or days <= 0:
+        return removed
+    import time as _time
+
+    cutoff = _time.time() - days * 86400
+    candidates = [str(path)] + [str(path) + f".{n}" for n in range(1, EventStore.MAX_ROTATED + 1)]
+    for p in candidates:
+        try:
+            if os.path.exists(p) and os.path.getmtime(p) < cutoff:
+                os.unlink(p)
+                removed.append(p)
+        except OSError:
+            continue
+    return removed
 
 
 def tail_events(path, limit=300):

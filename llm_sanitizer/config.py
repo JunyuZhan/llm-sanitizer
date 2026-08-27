@@ -48,6 +48,37 @@ def wordlist_path() -> Path:
     return data_dir() / "wordlist.txt"
 
 
+def policy_path() -> Path:
+    """组织策略(v0.5):enforced_categories / blocked_categories / retention_days。
+    由管理员/组织统一维护,优先级高于用户设置。"""
+    return data_dir() / "policy.json"
+
+
+DEFAULT_POLICY = {
+    "enforced_categories": [],   # 组织强制开启的类别(用户不可关闭)
+    "blocked_categories": [],    # 组织强制关闭的类别(用户不可开启)
+    "retention_days": 90,        # 事件留存天数(审计导出与启动清理)
+}
+
+
+def load_policy() -> dict:
+    """读取组织策略;不存在/异常返回默认(全量由用户控制)。"""
+    try:
+        with open(policy_path(), encoding="utf-8") as f:
+            data = json.load(f)
+        if not isinstance(data, dict):
+            return dict(DEFAULT_POLICY)
+        out = dict(DEFAULT_POLICY)
+        out.update(data)
+        if not isinstance(out.get("enforced_categories"), list):
+            out["enforced_categories"] = []
+        if not isinstance(out.get("blocked_categories"), list):
+            out["blocked_categories"] = []
+        return out
+    except Exception:
+        return dict(DEFAULT_POLICY)
+
+
 def load_wordlist_file() -> list:
     """读取用户词表;不存在/异常返回空(不崩溃)。"""
     from .masker import load_wordlist_file as _load
@@ -105,15 +136,33 @@ def upstream_key() -> str:
 
 
 def disabled_categories() -> set:
-    """从设置读取启用的类别,反推禁用集合。未配置 = 全量。"""
+    """生效类别 = 用户设置 ∩ (组织策略强制项)。优先级:
+    策略 enforced > 用户设置 > 环境变量(全量);策略 blocked 强制关闭。"""
     from .masker import ALL_CATEGORIES
 
     s = load_settings()
     cats = s.get("categories")
-    if cats is None:
-        return set()
-    enabled = set(cats)
+    enabled = set(cats) if cats is not None else set(ALL_CATEGORIES)
+    policy = load_policy()
+    enforced = set(policy.get("enforced_categories") or [])
+    blocked = set(policy.get("blocked_categories") or [])
+    enabled = (enabled | enforced) - blocked  # 强制开 + 用户开,再减去强制关
     return {c for c in ALL_CATEGORIES if c not in enabled}
+
+
+def enabled_categories() -> set:
+    """生效的启用类别(供控制台显示/审计)。"""
+    from .masker import ALL_CATEGORIES
+
+    return set(ALL_CATEGORIES) - disabled_categories()
+
+
+def retention_days() -> int:
+    """组织策略事件留存天数(默认 90)。"""
+    try:
+        return max(1, int(load_policy().get("retention_days") or 90))
+    except (TypeError, ValueError):
+        return 90
 
 
 def host() -> str:

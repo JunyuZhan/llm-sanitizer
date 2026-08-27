@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] — 0.5.0
+
+### Added
+
+- **Org policy** (`policy.json`, 600): `enforced_categories` (org-mandated on,
+  overrides user), `blocked_categories` (forced off), `retention_days` (event
+  retention, default 90); effective categories = (user ∪ enforced) − blocked.
+- **Audit export**: `llm-sanitizer audit-export` → CSV (per-event) or
+  `--json` (with cumulative summary); placeholder-only (no plaintext),
+  `--since YYYY-MM-DD` filter, 600-perm atomic write; events now carry dates
+  (`YYYY-MM-DD HH:MM:SS`) for day-level filtering; `read_all_events` merges
+  the main file + rotated history; rotation now keeps 3 incremental archives
+  (.1/.2/.3) instead of overwriting a single one — long-term audits survive;
+  startup cleanup honors retention.
+- **Desktop window**: `pip install llm-sanitizer-gateway[desktop]` +
+  `llm-sanitizer desktop` opens the console in a native pywebview window
+  (optional extra, ADR-1 core stays zero-dependency); window close stops the
+  gateway/dashboard.
+- **Standalone executable**: `packaging/llm_sanitizer.spec` + `build.py` —
+  PyInstaller one-file build, verified on macOS (9.4 MB, all CLI commands
+  work: help/status/mask/connect); signing/notarization steps documented.
+- Console: settings page shows org-enforced categories (cannot be unchecked).
+- Tests: +13 (policy merge/enforced/blocked/retention, audit CSV/JSON/since,
+  read_all across rotated history, rotation keeps 3 archives, desktop hint,
+  packaging artifacts) — 109 total, all pass.
+
 ## [0.4.2] - 2026-08-27
 
 ### Fixed (full-code review round)

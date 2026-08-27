@@ -12,7 +12,7 @@
 
 ## Project Status
 
-> **v0.2/v0.3 released · v0.4 in progress.** Local gateway, 15 Chinese-sensitive-data categories, live console, CLI, auto-start installer and CI are all in place — `pip install llm-sanitizer-gateway` to get started. Shipped: **WebSocket proxy, custom word lists, one-click integration, all three protocols, docx/xlsx/pdf format masking, Windows support**; v0.4 adds **image OCR masking** (optional dependency). Contributions welcome.
+> **v0.2/v0.3/v0.4 released · v0.5 in progress.** Local gateway, 15 Chinese-sensitive-data categories, live console, CLI, auto-start installer and CI are all in place — `pip install llm-sanitizer-gateway` to get started. Shipped: **WebSocket proxy, one-click integration, all three protocols, docx/xlsx/pdf masking, Windows, image OCR**; v0.5 adds **org policy / audit export, desktop window, standalone executable**. Contributions welcome.
 
 ## Why
 
@@ -118,7 +118,8 @@ Read [SECURITY.md](docs/SECURITY.md) before trusting this tool. **Core fact:** i
 | **v0.1** (released) | HTTP gateway, Chinese rules, live dashboard, installer, docs, e2e tests; PyPI release |
 | **v0.2 (released)** | ✅ WebSocket proxy, ✅ custom word lists, ✅ one-click integration (FR-12), ✅ all three protocols, ✅ docx/xlsx format masking |
 | **v0.3 (released)** | ✅ **Windows** (LOCALAPPDATA data dir, schtasks auto-start, 3-OS CI), ✅ **PDF format masking** |
-| **v0.4 (in progress)** | ✅ **Image OCR masking** (optional: `pip install llm-sanitizer-gateway[ocr]` + tesseract); next: multilingual rules (EN/JP), org policy & audit export, rule marketplace, desktop package |
+| **v0.4 (released)** | ✅ **Image OCR masking** (optional) |
+| **v0.5 (in progress)** | ✅ **Org policy** (policy.json: enforced/blocked categories, retention), ✅ **Audit export** (CSV/JSON, placeholder-only), ✅ **Desktop window** (`pip install llm-sanitizer-gateway[desktop]`), ✅ **Standalone executable** (PyInstaller, no Python needed); next: multilingual rules, rule marketplace, desktop window packaging |
 
 ## Contributing
 

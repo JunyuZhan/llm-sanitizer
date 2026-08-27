@@ -7,6 +7,7 @@ import re
 import socket
 import subprocess
 import sys
+import tempfile
 import threading
 import urllib.request
 from pathlib import Path
@@ -61,6 +62,13 @@ def _check_port(port):
 
 def cmd_start(args):
     config.ensure_dirs()
+    # 组织策略留存:启动时清理超过 retention_days 的事件文件(静默,不阻塞)
+    try:
+        from llm_sanitizer.events import cleanup_old_events
+
+        cleanup_old_events(str(config.events_path()), config.retention_days())
+    except Exception:
+        pass
     gateway.init_state()
     gs = gateway.create_gateway_server()
     ds = dashboard.create_dashboard_server()
@@ -258,6 +266,99 @@ def cmd_disconnect(args):
     return 0
 
 
+def cmd_audit_export(args):
+    """审计导出(v0.5):事件全量(主+.1)→ CSV/JSON,只含占位符无明文。
+    供律所/组织合规留档;--since 按事件日期过滤;输出权限 600。"""
+    import csv
+    import time as _time
+
+    from llm_sanitizer.events import read_all_events, read_stats_file
+
+    events = read_all_events(str(config.events_path()))
+    since_ts = None
+    if args.since:
+        try:
+            since_ts = _time.mktime(_time.strptime(args.since, "%Y-%m-%d"))
+        except ValueError:
+            print(f"[llm-sanitizer] 无效日期: {args.since}(格式 YYYY-MM-DD)")
+            return 1
+    # 事件 ts 自 v0.5 起含日期(YYYY-MM-DD HH:MM:SS);旧格式(仅 HH:MM:SS)视为当日
+    filtered = []
+    for e in events:
+        ts = str(e.get("ts", ""))
+        if since_ts is not None:
+            day = ts[:10]
+            try:
+                if _time.mktime(_time.strptime(day, "%Y-%m-%d")) < since_ts:
+                    continue
+            except ValueError:
+                continue  # 旧格式无日期,审计导出时跳过(--since 场景)
+        filtered.append(e)
+    dest = Path(args.output) if args.output else config.data_dir() / f"audit_{_time.strftime('%Y%m%d')}"
+    stats = read_stats_file(config.events_path())
+    summary = {
+        "total_events": len(filtered),
+        "total_masked": stats.get("total_masked", 0),
+        "total_requests": stats.get("total_requests", 0),
+        "by_category": stats.get("by_category", {}),
+        "exported_at": _time.strftime("%Y-%m-%d %H:%M:%S"),
+        "since": args.since or "all",
+        "note": "事件仅含占位符/类别/时间/请求路径,不含明文(map.json 除外)",
+    }
+    if args.json:
+        data = {"summary": summary, "events": filtered}
+        payload = json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")
+        if not args.output:
+            dest = dest.with_suffix(".json")
+    else:
+        import io
+
+        buf = io.StringIO()
+        header = ["ts", "kind", "category", "token", "method", "path"]
+        writer = csv.writer(buf)
+        writer.writerow(header)
+        for e in filtered:
+            writer.writerow([
+                e.get("ts", ""), e.get("kind", ""), e.get("category", ""),
+                e.get("token", ""), e.get("method", ""), e.get("path", ""),
+            ])
+        payload = buf.getvalue().encode("utf-8")
+        if not args.output:
+            dest = dest.with_suffix(".csv")
+    # 原子写 + 600(审计文件含请求路径,可能敏感)
+    try:
+        fd, tmp = tempfile.mkstemp(dir=str(dest.parent or "."), prefix=".audit-")
+    except OSError as e:
+        print(f"[llm-sanitizer] 无法写入 {dest}:{e}")
+        return 1
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(payload)
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, dest)
+    finally:
+        if os.path.exists(tmp):
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+    print(f"[ok] 审计已导出 {dest}({len(filtered)} 条事件,权限 600)")
+    if args.json:
+        print(f"  汇总:脱敏 {summary['total_masked']} 项 / 请求 {summary['total_requests']} 次")
+    return 0
+
+
+def cmd_desktop(args):
+    """桌面轻包:原生窗口打开控制台(需 [desktop] extra)。"""
+    from llm_sanitizer import desktop
+
+    if not desktop.available():
+        print("[llm-sanitizer] 桌面窗口是可选功能,当前未安装依赖:")
+        print(desktop.install_hint())
+        return 1
+    return 0 if desktop.run() else 1
+
+
 def cmd_upgrade(args):
     latest, has_new = check_update()
     if has_new:
@@ -290,6 +391,7 @@ def main():
     ap = argparse.ArgumentParser(description="LLM Sanitizer - 本地 AI 流量隐私网关")
     sub = ap.add_subparsers(dest="cmd")
     sub.add_parser("start", help="前台启动网关与看板")
+    sub.add_parser("desktop", help="桌面窗口模式(需 pip install llm-sanitizer-gateway[desktop])")
     sub.add_parser("status", help="查看状态与统计")
     p_mask = sub.add_parser("mask", help="单文件脱敏")
     p_mask.add_argument("file")
@@ -307,6 +409,10 @@ def main():
     p_inst = sub.add_parser("install", help="安装为开机自启")
     p_inst.add_argument("--uninstall", action="store_true")
     p_upg = sub.add_parser("upgrade", help="检查更新并查看升级方法")
+    p_aud = sub.add_parser("audit-export", help="导出审计记录(CSV/JSON,只含占位符)")
+    p_aud.add_argument("-o", "--output", help="输出文件(默认 <数据目录>/audit_日期.csv|.json)")
+    p_aud.add_argument("--since", help="只导出该日期(含)之后的事件,格式 YYYY-MM-DD")
+    p_aud.add_argument("--json", action="store_true", help="输出 JSON(含汇总)而非 CSV")
     p_con = sub.add_parser("connect", help="一键接入 Agent(当前支持 codex)")
     p_con.add_argument("agent")
     p_dis = sub.add_parser("disconnect", help="一键还原 Agent 配置")
@@ -314,6 +420,8 @@ def main():
     args = ap.parse_args()
     if args.cmd == "start":
         cmd_start(args)
+    elif args.cmd == "desktop":
+        return cmd_desktop(args)
     elif args.cmd == "status":
         cmd_status(args)
     elif args.cmd == "mask":
@@ -328,6 +436,8 @@ def main():
         return cmd_disconnect(args)
     elif args.cmd == "upgrade":
         cmd_upgrade(args)
+    elif args.cmd == "audit-export":
+        return cmd_audit_export(args)
     else:
         ap.print_help()
 

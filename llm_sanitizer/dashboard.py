@@ -133,6 +133,7 @@ wire_api = "responses"</pre>
         <button type="button" class="btn" onclick="preset('custom')">自定义</button>
       </div>
       <div id="catsbox" style="margin-top:8px"></div>
+      <div class="warn" id="enforced" style="display:none"></div>
       <div class="warn">关闭某个类别后,该类信息将<b>明文发送给云端</b>——请确认这是你的本意。保存后重启网关生效。</div>
       <div style="margin-top:14px">
         <button type="submit" class="btn btn-p">保存设置</button>
@@ -236,10 +237,14 @@ function renderCats(selected) {
     '<label class="chk"><input type="checkbox" value="' + c + '"' + (selected.includes(c)?' checked':'') + '> ' + c + '</label>').join('');
 }
 
-function loadSettings() {
+def loadSettings() {
   fetch('/api/settings').then(r=>r.json()).then(d=>{
     document.getElementById('upstream').value = d.upstream || '';
     renderCats(d.categories || ALL_CATS);
+    if (d.enforced && d.enforced.length) {
+      document.getElementById('enforced').textContent =
+        '组织策略强制开启:' + d.enforced.join('、') + '(不可关闭)';
+    }
   }).catch(()=>{});
 }
 
@@ -347,6 +352,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 "upstream": s.get("upstream", ""),
                 "key_set": bool(s.get("key")),
                 "categories": s.get("categories"),
+                "enforced": config.load_policy().get("enforced_categories") or [],
             })
         elif path == "/api/wordlist":
             from .masker import load_wordlist_file as _lwf
