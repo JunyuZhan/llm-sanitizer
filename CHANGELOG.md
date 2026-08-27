@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-08-27
+
+### Fixed
+
+- **OCR row-merge before masking**: tesseract splits Chinese into single-char
+  blocks ("姓名:张三" → 姓/名/:/张/三), so context rules (names, addresses)
+  never matched. Blocks are now merged per visual row (x-sorted, bbox union)
+  before masking — verified on real tesseract 5.5 + chi_sim: id-card name /
+  address / phone now all masked (was phone-only). Redaction covers the whole
+  row (bbox union), text report stays readable.
+- **`upgrade` prerelease hint**: on a dev/rc version with no newer stable,
+  the message said "already latest" — now honestly says "prerelease, stable is X".
+- Tests: +5 (merge reconstruction, multi-row preserved, merged context-rule
+  hits, upgrade prerelease/stable hints) — 91 total, all pass.
+
 ## [0.4.0] - 2026-08-27
 
 ### Added

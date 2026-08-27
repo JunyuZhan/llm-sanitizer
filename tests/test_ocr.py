@@ -73,6 +73,59 @@ class TestMaskBlocks(unittest.TestCase):
         self.assertIn("第三人 [姓名_3]", lines[1])
 
 
+class TestMergeBlocks(unittest.TestCase):
+    def test_merge_reconstructs_split_chinese(self):
+        """v0.4.1:修复 tesseract 中文拆字——姓/名/:/张/三 合并回 '姓名:张三'。"""
+        # 真机实测的 tesseract 输出形态(单字块 + 乱序返回)
+        blocks = [
+            ocr.OcrBlock(text="姓", bbox=(21, 22, 108, 24)),
+            ocr.OcrBlock(text="名", bbox=(59, 18, 18, 40)),
+            ocr.OcrBlock(text=":", bbox=(77, 18, 15, 40)),
+            ocr.OcrBlock(text="张", bbox=(92, 18, 24, 40)),
+            ocr.OcrBlock(text="三", bbox=(116, 18, 15, 40)),
+        ]
+        merged = ocr.merge_blocks(blocks)
+        self.assertEqual(len(merged), 1)
+        self.assertEqual(merged[0].text, "姓名:张三")
+        # bbox 为并集:x=21, y=18, w=131-21=110, h=58-18=40
+        self.assertEqual(merged[0].bbox, (21, 18, 110, 40))
+
+    def test_merge_preserves_multiple_rows(self):
+        """不同视觉行的块不合并。"""
+        blocks = [
+            ocr.OcrBlock(text="张三", bbox=(10, 10, 40, 20)),
+            ocr.OcrBlock(text="13912345678", bbox=(10, 50, 100, 20)),
+        ]
+        merged = ocr.merge_blocks(blocks)
+        self.assertEqual(len(merged), 2)
+
+    def test_merged_mask_hits_context_rules(self):
+        """v0.4.1 核心:合并后姓名/地址上下文规则重新命中(之前逐块全落空)。"""
+        # 模拟真机 OCR:姓名行/地址行被拆成单字
+        blocks = [
+            ocr.OcrBlock(text="姓", bbox=(10, 10, 24, 24)),
+            ocr.OcrBlock(text="名", bbox=(34, 10, 18, 24)),
+            ocr.OcrBlock(text=":", bbox=(52, 10, 15, 24)),
+            ocr.OcrBlock(text="张", bbox=(67, 10, 24, 24)),
+            ocr.OcrBlock(text="三", bbox=(91, 10, 15, 24)),
+            ocr.OcrBlock(text="住", bbox=(10, 50, 24, 24)),
+            ocr.OcrBlock(text="址", bbox=(34, 50, 18, 24)),
+            ocr.OcrBlock(text=":", bbox=(52, 50, 15, 24)),
+            ocr.OcrBlock(text="北京", bbox=(67, 50, 48, 24)),
+            ocr.OcrBlock(text="市朝阳区", bbox=(115, 50, 96, 24)),
+        ]
+        m = Masker()
+        merged = ocr.merge_blocks(blocks)
+        masked = ocr.mask_blocks(merged, m)
+        by_row = {b.bbox[1]: b for b in masked}
+        self.assertIn("[姓名_1]", by_row[10].masked_text, "姓名行合并后应命中姓名规则")
+        self.assertIn("[地址_1]", by_row[50].masked_text, "地址行合并后应命中地址规则")
+        # 文本报告可读
+        text = ocr.render_text(masked)
+        self.assertIn("[姓名_1]", text)
+        self.assertIn("[地址_1]", text)
+
+
 @unittest.skipUnless(HAS_PIL, "需要 Pillow(可选依赖)")
 class TestRedactImage(unittest.TestCase):
     def test_redact_blackens_bbox(self):

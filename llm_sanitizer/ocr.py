@@ -108,6 +108,27 @@ def mask_blocks(blocks, masker=None) -> list:
     return out
 
 
+def merge_blocks(blocks) -> list:
+    """把同一视觉行的块按 x 排序直接拼接成一个大块(v0.4.1)。
+
+    动机:tesseract 常把中文拆成单字块("姓名:张三" → 姓/名/:/张/三),
+    逐块脱敏会让姓名、地址等依赖连续文本的上下文规则全部落空。按行合并
+    后文本恢复连续序列,规则重新命中;bbox 取并集(打码覆盖整行,更彻底)。
+    注意:拼接会丢失词间空格(OCR 输出本就不含),对格式规则(手机号/身份
+    证/邮箱)与"角色词+连续汉字"的姓名规则有利。
+    """
+    out = []
+    for row in _group_lines(blocks):
+        row_sorted = sorted(row, key=lambda b: b.bbox[0])
+        text = "".join(b.text for b in row_sorted)
+        x = min(b.bbox[0] for b in row_sorted)
+        y = min(b.bbox[1] for b in row_sorted)
+        w = max(b.bbox[0] + b.bbox[2] for b in row_sorted) - x
+        h = max(b.bbox[1] + b.bbox[3] for b in row_sorted) - y
+        out.append(OcrBlock(text=text, bbox=(x, y, w, h)))
+    return out
+
+
 def _group_lines(masked_blocks) -> list:
     """按 bbox 的 y 分桶成"视觉行"(同一行的块 top 差距小),行内按 x 排序。"""
     rows = []  # 每行: [block, ...]
@@ -166,7 +187,9 @@ def mask_image(src, dest=None, masker=None, redact=False, lang=None) -> dict:
         )
     engine = PytesseractEngine(lang)
     blocks = engine.detect(str(src))
-    masked = mask_blocks(blocks, masker)
+    # 行内合并修复 tesseract 中文拆字(v0.4.1):姓名/地址等上下文规则重新命中
+    merged = merge_blocks(blocks)
+    masked = mask_blocks(merged, masker)
     changed = sum(1 for b in masked if b.changed)
     src_path = Path(src)
 

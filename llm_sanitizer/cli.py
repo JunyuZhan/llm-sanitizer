@@ -258,6 +258,10 @@ def cmd_upgrade(args):
     latest, has_new = check_update()
     if has_new:
         print(f"[llm-sanitizer] 发现新版本 {latest}(当前 {__version__})")
+    elif re.search(r"(dev|rc|\.a\d|\.b\d)", __version__):
+        # 预发布版本比线上稳定版"新",但用户实际装的是未发布版——如实提示
+        print(f"[llm-sanitizer] 当前 {__version__} 为预发布版本(线上稳定版 {latest})")
+        print("[llm-sanitizer] 如无特殊需求,建议升级到正式版:")
     else:
         print(f"[llm-sanitizer] 当前已是最新版本({__version__})")
     print("[llm-sanitizer] 升级:")

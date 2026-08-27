@@ -1,5 +1,7 @@
 """CLI 冒烟测试:python3 -m llm_sanitizer mask/restore 端到端可用(__main__ 入口)。"""
 
+import contextlib
+import io
 import json
 import os
 import subprocess
@@ -10,6 +12,33 @@ from unittest import mock
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PY = sys.executable
+
+
+class TestUpgradeHints(unittest.TestCase):
+    def test_upgrade_prerelease_hint(self):
+        """v0.4.1:预发布版本且线上无更新时,如实提示'预发布'而非误导'已是最新'。"""
+        from llm_sanitizer import cli
+
+        buf = io.StringIO()
+        with mock.patch.object(cli, "check_update", return_value=("0.4.0", False)), \
+             mock.patch.object(cli, "__version__", "0.4.1.dev1"), \
+             contextlib.redirect_stdout(buf):
+            cli.cmd_upgrade(None)
+        out = buf.getvalue()
+        self.assertIn("预发布版本", out)
+        self.assertIn("0.4.1.dev1", out)
+        self.assertNotIn("当前已是最新版本", out)
+
+    def test_upgrade_stable_latest(self):
+        """稳定版且线上无更新时,保持原提示。"""
+        from llm_sanitizer import cli
+
+        buf = io.StringIO()
+        with mock.patch.object(cli, "check_update", return_value=("0.4.1", False)), \
+             mock.patch.object(cli, "__version__", "0.4.1"), \
+             contextlib.redirect_stdout(buf):
+            cli.cmd_upgrade(None)
+        self.assertIn("当前已是最新版本", buf.getvalue())
 
 
 class TestCLI(unittest.TestCase):
