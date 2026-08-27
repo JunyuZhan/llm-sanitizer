@@ -134,7 +134,8 @@ class TestCliDispatch(unittest.TestCase):
             f.write(b"not-a-real-png")
         r = subprocess.run(
             [sys.executable, "-m", "llm_sanitizer", "mask", tmp],
-            capture_output=True, text=True, cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
         )
         self.assertIn("[ocr]", r.stdout)
         self.assertIn("tesseract", r.stdout)
