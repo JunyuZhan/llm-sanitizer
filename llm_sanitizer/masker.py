@@ -1,4 +1,4 @@
-"""脱敏规则引擎:15 类中文敏感信息识别、占位符映射、精确还原。
+"""脱敏规则引擎:15 类中文敏感信息 + 英文 SSN/护照识别、占位符映射、精确还原。
 
 设计契约(见 docs/开发文档.md 与 docs/需求文档.md):
 - token 格式 `[类别_序号]`,同一原文跨请求复用同一 token(FR-3)
@@ -76,6 +76,39 @@ _CASE_NO = re.compile(
 )
 # 护照 / 通行证等证件号
 _ID_PASSPORT = re.compile(r"(?<![0-9A-Za-z])([EG]\d{8}|P\d{7}|C\d{8}|T\d{8})(?![0-9A-Za-z])")
+# 国际护照 / 旅行证件号:强上下文(中英文)+ 号码格式,避免订单号/编号误伤
+_EN_PASSPORT = re.compile(
+    r"(?i)(passport(?:\s+(?:no\.?|number|num|#|id))?|travel\s+document"
+    r"|护照(?:号|编号)?|旅行证件)"
+    r"\s*[:：#]?\s*([A-Z]\d{7,8}|\d{8}[A-Z]|[A-Z]{2}\d{6,8})"
+)
+
+
+def _find_en_passport(text: str):
+    """英文上下文护照号(含上下文整体脱敏,还原精确)。"""
+    for m in _EN_PASSPORT.finditer(text):
+        yield (m.start(), m.end(), m.group(0))
+
+
+# 美国 SSN(社保号):XXX-XX-XXXX,严格结构校验防误报
+_SSN = re.compile(r"(?<!\d)\d{3}-\d{2}-\d{4}(?!\d)")
+
+
+def _ssn_valid(s: str) -> bool:
+    """SSN 结构校验:区号 001-899 且非 666;组号非 00;序号非 0000。"""
+    area, group, serial = s.split("-")
+    a = int(area)
+    if a == 0 or a == 666 or a > 899:
+        return False
+    if group == "00" or serial == "0000":
+        return False
+    return True
+
+
+def _find_ssn(text: str):
+    for m in _SSN.finditer(text):
+        if _ssn_valid(m.group(0)):
+            yield (m.start(), m.end(), m.group(0))
 # 密钥 / 令牌:常见前缀格式
 _SECRET_PREFIX = re.compile(
     r"(?<![0-9A-Za-z])(sk-[A-Za-z0-9_\-]{16,64}|ghp_[A-Za-z0-9]{30,60}|"
@@ -295,6 +328,8 @@ RULES = [    (_find_id18, "身份证号"),
     (_PLATE, "车牌号"),
     (_CASE_NO, "案号"),
     (_ID_PASSPORT, "证件号"),
+    (_find_en_passport, "证件号"),
+    (_find_ssn, "SSN"),
     (_SECRET_PREFIX, "密钥令牌"),
     (_find_secret_fields, "密钥令牌"),
     (_find_company, "公司名称"),

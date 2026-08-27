@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] — 0.6.0
+
+### Added
+
+- **English rules (v0.5 candidate, landed post-0.5.0)**: US SSN (`XXX-XX-XXXX`
+  with strict structure check — area 001–899 excluding 666, non-zero group/
+  serial) as new category `SSN`; international passport numbers via strong
+  context (`Passport no./护照号/旅行证件` + format: `N1234567`,
+  `NB12345678`, `AB123456`, `12345678X`) merged into `证件号`. Format-only
+  patterns stay context-gated to avoid order-number false positives. Tests:
+  +13 cases (hits + 7 FP samples). Categories now 16.
+
 ## [0.5.0] - 2026-08-27
 
 ### Added
