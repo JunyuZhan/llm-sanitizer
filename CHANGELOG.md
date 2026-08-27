@@ -27,9 +27,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   PyInstaller one-file build, verified on macOS (9.4 MB, all CLI commands
   work: help/status/mask/connect); signing/notarization steps documented.
 - Console: settings page shows org-enforced categories (cannot be unchecked).
+- **Desktop window packaged into the standalone executable**: spec uses
+  `collect_all('webview')` + cocoa/gtk platform imports; verified on macOS —
+  `desktop` opens the window, gateway/dashboard serve, no crash.
+- **Rule-engine reliability fixes (found by scenario/fuzz verification)**:
+  case numbers with half-width parens `(2026)` now matched; `户名`/`开户名`
+  added as name context words (was the most common bank-doc field, unmasked);
+  license plates after Chinese words (`车牌粤B12345`) now matched — lookbehind
+  no longer excludes CJK (structure is unique, no new false positives: 广东的
+  B类货物/该公司在A股上市/京津冀地区 all stay untouched).
+- Reliability verification: 31-check scenario suite (15 categories in real
+  contracts/judgments/bank docs, 8 false-positive samples, 14 edge inputs,
+  200 fuzz strings, restore round-trip/fragment/multi-turn/restart/concurrent,
+  category matrix) — all pass.
 - Tests: +13 (policy merge/enforced/blocked/retention, audit CSV/JSON/since,
   read_all across rotated history, rotation keeps 3 archives, desktop hint,
-  packaging artifacts) — 109 total, all pass.
+  packaging artifacts; +5 rule cases) — 109 total, all pass.
 
 ## [0.4.2] - 2026-08-27
 
