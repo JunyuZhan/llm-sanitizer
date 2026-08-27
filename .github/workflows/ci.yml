@@ -25,6 +25,7 @@ jobs:
       - name: Validate installer syntax
         run: bash -n install.sh
       - name: Smoke test package import and CLI
+        shell: bash
         run: |
           python3 -c "import llm_sanitizer; print('version', llm_sanitizer.__version__)"
           python3 -m llm_sanitizer status >/dev/null
