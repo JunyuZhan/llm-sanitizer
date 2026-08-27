@@ -2,10 +2,15 @@
 
 设计约束：事件只记录占位符/类别/时间/请求路径，**绝不记录明文**。
 明文只在 map.json 中，供还原使用。
+
+**累计统计(FR-5 修订)**：`stats.json`(同目录,权限 600)持久化 per-category
+计数器——看板"累计脱敏数"不随事件文件轮转/超尾而倒退,也不随网关重启归零。
+事件文件本身只做最近事件的展示与轮转。
 """
 
 import json
 import os
+import tempfile
 import threading
 import time
 from collections import deque
@@ -18,7 +23,10 @@ class EventStore:
         self.rotate_bytes = rotate_bytes  # 事件文件超过该字节数时轮转(P3:防无限增长)
         self._events = deque(maxlen=max_memory)
         self._lock = threading.Lock()
+        self._stats = {"total_masked": 0, "total_requests": 0, "by_category": {}}
+        self._stats_path = (str(path) + ".stats.json") if path else None
         self._load()
+        self._load_stats()
 
     def _load(self):
         try:
@@ -28,6 +36,41 @@ class EventStore:
                         line = line.strip()
                         if line:
                             self._events.append(json.loads(line))
+        except Exception:
+            pass
+
+    def _load_stats(self):
+        """读取持久化累计计数(重启不归零、轮转不倒退)。"""
+        try:
+            if self._stats_path and os.path.exists(self._stats_path):
+                with open(self._stats_path, encoding="utf-8") as f:
+                    data = json.load(f)
+                if isinstance(data, dict):
+                    self._stats.update(data)
+                    if not isinstance(self._stats.get("by_category"), dict):
+                        self._stats["by_category"] = {}
+        except Exception:
+            pass
+
+    def _save_stats(self):
+        """原子写 + chmod 600(与 map.json 同级敏感文件)。"""
+        try:
+            if not self._stats_path:
+                return
+            d = os.path.dirname(self._stats_path) or "."
+            os.makedirs(d, exist_ok=True)
+            fd, tmp = tempfile.mkstemp(dir=d, prefix=".stats-")
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    json.dump(self._stats, f, ensure_ascii=False, indent=2)
+                os.chmod(tmp, 0o600)
+                os.replace(tmp, self._stats_path)
+            finally:
+                if os.path.exists(tmp):
+                    try:
+                        os.unlink(tmp)
+                    except OSError:
+                        pass
         except Exception:
             pass
 
@@ -45,6 +88,16 @@ class EventStore:
         ev.update(fields)
         with self._lock:
             self._events.append(ev)
+            # 累计统计持久化(FR-5 修订):看板读 stats,不随事件尾部/轮转倒退
+            if kind == "mask":
+                self._stats["total_masked"] += 1
+                c = fields.get("category") or "?"
+                bc = self._stats.setdefault("by_category", {})
+                bc[c] = bc.get(c, 0) + 1
+            elif kind == "request":
+                self._stats["total_requests"] = self._stats.get("total_requests", 0) + 1
+            if kind in ("mask", "request"):
+                self._save_stats()
             try:
                 if self.path:
                     os.makedirs(os.path.dirname(self.path), exist_ok=True)
@@ -63,18 +116,26 @@ class EventStore:
         return events[-limit:] if limit else events
 
     def stats(self):
-        events = self.snapshot()
-        masked = [e for e in events if e.get("kind") == "mask"]
-        by_cat = {}
-        for e in masked:
-            c = e.get("category", "?")
-            by_cat[c] = by_cat.get(c, 0) + 1
-        requests = [e for e in events if e.get("kind") == "request"]
-        return {
-            "total_masked": len(masked),
-            "by_category": by_cat,
-            "requests": len(requests),
-        }
+        """持久化累计统计(重启/轮转不丢)。"""
+        with self._lock:
+            return {
+                "total_masked": self._stats.get("total_masked", 0),
+                "total_requests": self._stats.get("total_requests", 0),
+                "by_category": dict(self._stats.get("by_category", {})),
+            }
+
+
+def read_stats_file(path):
+    """dashboard 进程独立读取持久化累计统计(不依赖网关内存/事件尾部)。"""
+    try:
+        sp = str(path) + ".stats.json"
+        if os.path.exists(sp):
+            with open(sp, encoding="utf-8") as f:
+                data = json.load(f)
+            return data if isinstance(data, dict) else {}
+    except Exception:
+        pass
+    return {}
 
 
 def tail_events(path, limit=300):

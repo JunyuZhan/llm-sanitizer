@@ -108,6 +108,16 @@ def mask_json(obj, keys, in_sensitive=False):
                     with state.lock:
                         masked, _ = mask_text(v, state.masker)
                     out[k] = masked
+            elif k == "arguments" and isinstance(v, (dict, list)):
+                # OpenAI arguments 的 dict 形态(部分客户端直传对象而非 JSON 字符串):
+                # 整体全字符串脱敏,与 Anthropic tool_use.input 对称
+                out[k] = _mask_all_strings(v)
+            elif k == "input" and isinstance(v, (dict, list)):
+                # Anthropic tool_use.input(任意 JSON,请求侧 dict 形态):
+                # 整体全字符串脱敏——与响应侧 _restore_all_strings 对称。
+                # 之前与 OpenAI arguments 同一类对称缺口:客户端回传还原后的
+                # 明文工具参数时,此处不脱敏会明文直通上游(复核实验证实)。
+                out[k] = _mask_all_strings(v)
             else:
                 out[k] = mask_json(v, keys, in_sensitive=k in keys)
         return out
@@ -451,91 +461,13 @@ class GatewayHandler(BaseHTTPRequestHandler):
             return
         try:
             obj = json.loads(data)
-            self._transform_event(obj, restorer)
+            _transform_event(obj, restorer)
             data = json.dumps(obj, ensure_ascii=False).encode("utf-8")
         except Exception:
             pass
         block = b"".join(b"event: " + n.encode("utf-8") + b"\n" for n in names)
         block += b"data: " + data + b"\n\n"
         self._write_chunk(block)
-
-    def _transform_event(self, obj, restorer):
-        if not isinstance(obj, dict):
-            return
-        mapping = _snapshot_mapping()  # 竞态修复补完:一次快照,后续还原全走它
-        typ = obj.get("type")
-        if typ == "response.output_text.delta" and isinstance(obj.get("delta"), str):
-            obj["delta"] = restorer.feed(obj["delta"])
-        elif typ == "response.output_text.done" and isinstance(obj.get("text"), str):
-            obj["text"] = restore_text(obj["text"], mapping)
-            restorer.reset()
-        elif typ == "response.reasoning_text.delta" and isinstance(obj.get("delta"), str):
-            obj["delta"] = restorer.feed(obj["delta"])
-        elif typ == "response.reasoning_text.done" and isinstance(obj.get("text"), str):
-            obj["text"] = restore_text(obj["text"], mapping)
-            restorer.reset()
-        elif typ == "response.reasoning_summary.delta" and isinstance(obj.get("summary"), str):
-            obj["summary"] = restorer.feed(obj["summary"])
-        elif typ == "response.reasoning_summary.done" and isinstance(obj.get("summary"), str):
-            obj["summary"] = restore_text(obj["summary"], mapping)
-            restorer.reset()
-        elif typ == "response.completed":
-            if isinstance(obj.get("response"), dict):
-                obj["response"] = restore_json(obj["response"])
-            restorer.reset()
-        elif typ in ("response.content_part.delta",):
-            delta = obj.get("delta")
-            if isinstance(delta, str):
-                obj["delta"] = restorer.feed(delta)
-            elif isinstance(delta, dict) and isinstance(delta.get("text"), str):
-                delta["text"] = restorer.feed(delta["text"])  # 兼容对象形态 delta
-        elif typ == "response.function_call_arguments.done" and isinstance(obj.get("arguments"), str):
-            obj["arguments"] = _restore_json_string(obj["arguments"])
-        # Anthropic Messages SSE(协议适配,v0.2):content_block_delta 文本分片走流式缓冲
-        elif typ == "content_block_delta" and isinstance(obj.get("delta"), dict):
-            d = obj["delta"]
-            if d.get("type") == "text_delta" and isinstance(d.get("text"), str):
-                d["text"] = restorer.feed(d["text"])
-        elif typ in ("message_stop", "content_block_stop"):
-            restorer.reset()
-        elif "candidates" in obj:
-            # Google Gemini generateContent(含 streamGenerateContent SSE):
-            # candidates[].content.parts[].text 走流式缓冲,finishReason 时重置
-            for cand in obj.get("candidates") or []:
-                if not isinstance(cand, dict):
-                    continue
-                content = cand.get("content")
-                if isinstance(content, dict):
-                    for part in content.get("parts") or []:
-                        if isinstance(part, dict) and isinstance(part.get("text"), str):
-                            part["text"] = restorer.feed(part["text"])
-                if cand.get("finishReason"):
-                    restorer.reset()
-        elif "choices" in obj:
-            for ch in obj.get("choices") or []:
-                if not isinstance(ch, dict):
-                    continue
-                delta = ch.get("delta")
-                if isinstance(delta, dict) and isinstance(delta.get("content"), str):
-                    delta["content"] = restorer.feed(delta["content"])
-                if isinstance(delta, dict) and isinstance(delta.get("tool_calls"), list):
-                    for tc in delta["tool_calls"]:
-                        if isinstance(tc, dict) and isinstance(tc.get("function"), dict):
-                            fn = tc["function"]
-                            if isinstance(fn.get("arguments"), str):
-                                fn["arguments"] = _restore_json_string(fn["arguments"])
-                msg = ch.get("message")
-                if isinstance(msg, dict) and isinstance(msg.get("content"), str):
-                    msg["content"] = restore_text(msg["content"], mapping)
-                    restorer.reset()
-                if isinstance(msg, dict) and isinstance(msg.get("tool_calls"), list):
-                    for tc in msg["tool_calls"]:
-                        if isinstance(tc, dict) and isinstance(tc.get("function"), dict):
-                            fn = tc["function"]
-                            if isinstance(fn.get("arguments"), str):
-                                fn["arguments"] = _restore_json_string(fn["arguments"])
-        else:
-            obj.update(restore_json(obj))  # D2 修复:使用还原后的返回值
 
     def _handle_ws(self):
         """WebSocket 透明代理:校验(FR-8) → 回 101 → 双向转发(去程脱敏/回程还原)。"""
@@ -611,3 +543,88 @@ def create_gateway_server(port=None):
     return ThreadingHTTPServer(
         (config.host(), port if port is not None else config.gateway_port()), GatewayHandler
     )
+
+
+# 模块级:SSE 事件还原(协议感知,便于单测)——原为 GatewayHandler 方法,提级后不截断类定义
+def _transform_event(obj, restorer):
+    """转换单个 SSE 事件对象:还原占位符(协议感知,模块级函数以便测试)。"""
+    if not isinstance(obj, dict):
+        return
+    mapping = _snapshot_mapping()  # 竞态修复补完:一次快照,后续还原全走它
+    typ = obj.get("type")
+    if typ == "response.output_text.delta" and isinstance(obj.get("delta"), str):
+        obj["delta"] = restorer.feed(obj["delta"])
+    elif typ == "response.output_text.done" and isinstance(obj.get("text"), str):
+        obj["text"] = restore_text(obj["text"], mapping)
+        restorer.reset()
+    elif typ == "response.reasoning_text.delta" and isinstance(obj.get("delta"), str):
+        obj["delta"] = restorer.feed(obj["delta"])
+    elif typ == "response.reasoning_text.done" and isinstance(obj.get("text"), str):
+        obj["text"] = restore_text(obj["text"], mapping)
+        restorer.reset()
+    elif typ == "response.reasoning_summary.delta" and isinstance(obj.get("summary"), str):
+        obj["summary"] = restorer.feed(obj["summary"])
+    elif typ == "response.reasoning_summary.done" and isinstance(obj.get("summary"), str):
+        obj["summary"] = restore_text(obj["summary"], mapping)
+        restorer.reset()
+    elif typ == "response.completed":
+        if isinstance(obj.get("response"), dict):
+            obj["response"] = restore_json(obj["response"])
+        restorer.reset()
+    elif typ in ("response.content_part.delta",):
+        delta = obj.get("delta")
+        if isinstance(delta, str):
+            obj["delta"] = restorer.feed(delta)
+        elif isinstance(delta, dict) and isinstance(delta.get("text"), str):
+            delta["text"] = restorer.feed(delta["text"])  # 兼容对象形态 delta
+    elif typ == "response.function_call_arguments.done" and isinstance(obj.get("arguments"), str):
+        obj["arguments"] = _restore_json_string(obj["arguments"])
+    # Anthropic Messages SSE(协议适配,v0.2):content_block_delta 文本分片走流式缓冲
+    elif typ == "content_block_delta" and isinstance(obj.get("delta"), dict):
+        d = obj["delta"]
+        if d.get("type") == "text_delta" and isinstance(d.get("text"), str):
+            d["text"] = restorer.feed(d["text"])
+    elif typ == "input_json_delta" and isinstance(obj.get("partial_json"), str):
+        # Anthropic 流式工具调用参数(JSON 片段分片):走流式缓冲还原,
+        # content_block_stop 时重置(与请求侧 _mask_all_strings 对称)
+        obj["partial_json"] = restorer.feed(obj["partial_json"])
+    elif typ in ("message_stop", "content_block_stop"):
+        restorer.reset()
+    elif "candidates" in obj:
+        # Google Gemini generateContent(含 streamGenerateContent SSE):
+        # candidates[].content.parts[].text 走流式缓冲,finishReason 时重置
+        for cand in obj.get("candidates") or []:
+            if not isinstance(cand, dict):
+                continue
+            content = cand.get("content")
+            if isinstance(content, dict):
+                for part in content.get("parts") or []:
+                    if isinstance(part, dict) and isinstance(part.get("text"), str):
+                        part["text"] = restorer.feed(part["text"])
+            if cand.get("finishReason"):
+                restorer.reset()
+    elif "choices" in obj:
+        for ch in obj.get("choices") or []:
+            if not isinstance(ch, dict):
+                continue
+            delta = ch.get("delta")
+            if isinstance(delta, dict) and isinstance(delta.get("content"), str):
+                delta["content"] = restorer.feed(delta["content"])
+            if isinstance(delta, dict) and isinstance(delta.get("tool_calls"), list):
+                for tc in delta["tool_calls"]:
+                    if isinstance(tc, dict) and isinstance(tc.get("function"), dict):
+                        fn = tc["function"]
+                        if isinstance(fn.get("arguments"), str):
+                            fn["arguments"] = _restore_json_string(fn["arguments"])
+            msg = ch.get("message")
+            if isinstance(msg, dict) and isinstance(msg.get("content"), str):
+                msg["content"] = restore_text(msg["content"], mapping)
+                restorer.reset()
+            if isinstance(msg, dict) and isinstance(msg.get("tool_calls"), list):
+                for tc in msg["tool_calls"]:
+                    if isinstance(tc, dict) and isinstance(tc.get("function"), dict):
+                        fn = tc["function"]
+                        if isinstance(fn.get("arguments"), str):
+                            fn["arguments"] = _restore_json_string(fn["arguments"])
+    else:
+        obj.update(restore_json(obj))  # D2 修复:使用还原后的返回值

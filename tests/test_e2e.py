@@ -410,6 +410,49 @@ class TestAnthropicJSON(GatewayFixture):
                          {"Authorization": "Bearer sk-y"})
         self.assertEqual(gw.auth_headers("https://api.deepseek.com/v1", ""), {})
 
+    def test_request_tool_use_input_masked(self):
+        """复核修复:Anthropic 多轮工具调用,请求侧 tool_use.input(dict 明文)
+        必须脱敏——之前与 OpenAI arguments 同一类对称缺口,明文直通上游。"""
+        payload = {
+            "model": "claude-3-5-sonnet",
+            "max_tokens": 256,
+            "messages": [
+                {"role": "user", "content": "保存案件"},
+                {"role": "assistant", "content": [
+                    {"type": "tool_use", "id": "t1", "name": "save_case",
+                     "input": {"party": "原告张三", "phone": "13912345678"}}]},
+            ],
+        }
+        status, _ = _post(self.gport, "/v1/messages", payload)
+        self.assertEqual(status, 200)
+        raw = self.last_raw()
+        self.assertNotIn("13912345678", raw)
+        self.assertIn("[手机号_1]", raw)
+        # 姓名通过上下文规则命中(原告+张三),也脱敏
+        self.assertNotIn("原告张三", raw)
+        self.assertIn("[姓名_1]", raw)
+
+    def test_input_json_delta_stream_restored(self):
+        """复核补强:Anthropic 流式工具参数 input_json_delta(JSON 分片)走流式还原。"""
+        from llm_sanitizer.gateway import StreamRestorer, _transform_event
+        from llm_sanitizer.masker import mask_text
+
+        with gw.state.lock:
+            mask_text('{"party": "原告张三", "phone": "13912345678"}', gw.state.masker)
+        restorer = StreamRestorer()
+        # 分片 1:占位符被切碎,feed 保留前缀、吐出不完整尾部
+        ev1 = {"type": "input_json_delta", "partial_json": '{"party": "[姓'}
+        _transform_event(ev1, restorer)
+        p1 = ev1["partial_json"]
+        # 分片 2:凑齐 token 并还原(客户端累积两片即完整还原)
+        ev2 = {"type": "input_json_delta", "partial_json": '名_1]", "phone": "[手机号_1]"}'}
+        _transform_event(ev2, restorer)
+        p2 = ev2["partial_json"]
+        joined = p1 + p2
+        self.assertIn("张三", joined)
+        self.assertIn("13912345678", joined)
+        self.assertNotIn("[姓", joined)
+
 
 class TestAnthropicSSE(GatewayFixture):
     """协议适配:Anthropic SSE 流式(content_block_delta 分片还原)。"""

@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] — 0.4.2
+
+### Fixed (full-code review round)
+
+- **Anthropic request-side `tool_use.input` (dict) now masked** — the same
+  symmetric gap as the old OpenAI `arguments` P1: after the gateway restored
+  tool-call arguments to plaintext, the client's next-turn echo passed them
+  upstream unmasked. `input` dict/list (and `arguments` dict form) now go
+  through `_mask_all_strings`; verified by e2e and reproduced-experiment.
+- **Anthropic streaming `input_json_delta` restored** — streamed tool-call
+  parameters (fragment-split JSON) now flow through the StreamRestorer;
+  `_transform_event` promoted to a module-level function for testability.
+- **Cumulative stats persisted (FR-5, reviewer-deferred)**: `stats.json`
+  (atomic, 600) holds per-category counters — dashboard/`status` no longer
+  regress past the 300-event tail or lose counts on rotation/restart.
+  Verified live: 350 events after rotation → dashboard shows 350.
+- Gateway class-structure fix found while refactoring: a module-level def
+  inside the class body silently truncated `GatewayHandler` (lost methods,
+  RemoteDisconnected on 403) — caught by the review round, restructured.
+- Tests: +5 (Anthropic input masking, input_json_delta, stats persist /
+  rotation / 600) — 96 total, all pass.
+
 ## [0.4.1] - 2026-08-27
 
 ### Fixed

@@ -82,18 +82,22 @@ def cmd_start(args):
 
 
 def cmd_status(args):
-    from llm_sanitizer.events import tail_events  # D1 修复:包内绝对导入
+    from llm_sanitizer.events import read_stats_file, tail_events  # D1 修复:包内绝对导入
 
     gw = _check_port(config.gateway_port())
     db = _check_port(config.dashboard_port())
-    events = tail_events(str(config.events_path()), limit=10000)
-    masked = [e for e in events if e.get("kind") == "mask"]
-    reqs = [e for e in events if e.get("kind") == "request"]
+    stats = read_stats_file(config.events_path())
+    total = int(stats.get("total_masked", 0))
+    reqs_total = int(stats.get("total_requests", 0))
+    if not total:  # 兼容旧数据(无 stats.json)
+        events = tail_events(str(config.events_path()), limit=10000)
+        total = len([e for e in events if e.get("kind") == "mask"])
+        reqs_total = len([e for e in events if e.get("kind") == "request"])
     print(f"网关端口 {config.gateway_port()}: {'运行中' if gw else '未运行'}")
     print(f"看板端口 {config.dashboard_port()}: {'运行中' if db else '未运行'}")
     print(f"上游: {config.upstream()}")
     print(f"数据目录: {config.data_dir()}")
-    print(f"累计脱敏: {len(masked)} 项，请求: {len(reqs)} 次")
+    print(f"累计脱敏: {total} 项，请求: {reqs_total} 次")
 
 
 def ocr_supports(path: str) -> bool:

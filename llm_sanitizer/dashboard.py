@@ -304,20 +304,35 @@ class DashboardHandler(BaseHTTPRequestHandler):
         if path in ("/", "/index.html"):
             self._send(200, PAGE.encode("utf-8"), "text/html; charset=utf-8")
         elif path == "/api/status":
+            # 累计统计读持久化 stats.json(FR-5 修订):重启不归零、事件轮转/超尾不倒退;
+            # 兼容旧数据:无 stats 文件时从事件文件退化计算
+            from .events import read_stats_file
+
+            stats = read_stats_file(config.events_path())
+            if not stats.get("total_masked"):
+                events = tail_events(str(config.events_path()), limit=300)
+                masked = [e for e in events if e.get("kind") == "mask"]
+                reqs = [e for e in events if e.get("kind") == "request"]
+                total_masked = len(masked)
+                total_requests = len(reqs)
+                by_cat = {}
+                for e in masked:
+                    c = e.get("category", "?")
+                    by_cat[c] = by_cat.get(c, 0) + 1
+            else:
+                total_masked = int(stats.get("total_masked", 0))
+                total_requests = int(stats.get("total_requests", 0))
+                by_cat = {str(k): int(v) for k, v in stats.get("by_category", {}).items()}
             events = tail_events(str(config.events_path()), limit=300)
             masked = [e for e in events if e.get("kind") == "mask"]
             reqs = [e for e in events if e.get("kind") == "request"]
-            by_cat = {}
-            for e in masked:
-                c = e.get("category", "?")
-                by_cat[c] = by_cat.get(c, 0) + 1
             from .masker import ALL_CATEGORIES
 
             settings = config.load_settings()
             cats = settings.get("categories") or ALL_CATEGORIES
             self._json(200, {
-                "total_masked": len(masked),
-                "requests": len(reqs),
+                "total_masked": total_masked,
+                "requests": total_requests,
                 "by_category": by_cat,
                 "categories": cats,
                 "events": list(reversed(masked[-20:])),
