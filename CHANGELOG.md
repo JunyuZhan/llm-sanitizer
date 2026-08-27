@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] - 2026-08-27
+
+### Fixed
+
+- **看板 JS 语法错误(看板页面全挂的元凶)**:v0.5 引入的笔误
+  `def loadSettings() {`(Python 关键字混入 JS)导致整个 `<script>` 块
+  语法错误、一行不跑——统计永远 0、Agent 列表永远"检测中…",且 API 测试
+  全部正常、只有浏览器渲染才暴露。已改为 `function loadSettings() {`,
+  并修复 Python 字符串转义被吞的 `\'` → `&quot;`(agentAction 按钮参数)。
+- **看板前端静态守卫(防再犯)**:新测试断言 PAGE 模板 JS 内不允许行首 `def `、
+  关键函数齐全、开关式 UI 文案存在;有 node 时深度 `node --check`(CI 会执行)。
+  Tests: +5,139 total,all pass。
+
 ## [0.6.0] - 2026-08-27
 
 ### Added

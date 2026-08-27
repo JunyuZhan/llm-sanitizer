@@ -1,3 +1,3 @@
 """LLM Sanitizer - 本地 AI 流量隐私网关。"""
 
-__version__ = "0.6.0"
+__version__ = "0.6.1"
