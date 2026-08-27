@@ -60,6 +60,17 @@ Pin the version you use, and diff/checksum your checkout against a release tag. 
 ### Will the gateway slow down my agent noticeably?
 Masking is regex + dictionary lookups over text fields; for typical documents it's milliseconds per request. Streaming adds a small buffer for restore. No network detour — traffic goes to the same upstream you'd use anyway.
 
+### Can text inside images / scanned documents be masked?
+**Yes, since v0.4** (optional dependency). `llm-sanitizer mask id-card.png` runs OCR locally and masks the text:
+
+```bash
+pip install llm-sanitizer-gateway[ocr]   # plus system tesseract + chi_sim language data
+llm-sanitizer mask id-card.png           # default: masked text report (restorable)
+llm-sanitizer mask contract.jpg --redact # redacted image (sensitive areas blacked out, irreversible)
+```
+
+OCR runs fully local — no new outbound traffic. Chinese recognition quality depends on the tesseract language pack; redaction is irreversible, the text report is restorable.
+
 ### Does it support Windows?
 **Yes, since v0.3.** `pip install llm-sanitizer-gateway` works on all three platforms. Data lives in `%LOCALAPPDATA%\llm-sanitizer` (user-private ACLs replace the 600-perm semantics); auto-start via `llm-sanitizer install` (schtasks ONLOGON, no admin).
 

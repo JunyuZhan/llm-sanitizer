@@ -84,7 +84,7 @@ Codex / WorkBuddy / OpenClaw 的分步配置见 [Agent 接入指南](AGENTS.md)�
 | `python3 -m llm_sanitizer status` | 查看端口状态、上游、累计统计 |
 | `python3 -m llm_sanitizer connect <agent>` | 一键接入 Agent(自动备份,可还原;当前支持 codex) |
 | `python3 -m llm_sanitizer disconnect <agent>` | 一键还原 Agent 配置 |
-| `python3 -m llm_sanitizer mask <文件>` | 不经过网关,对单个文件脱敏(文本/CSV/JSON/SQL/代码;docx/xlsx/pdf 保留格式) |
+| `python3 -m llm_sanitizer mask <文件>` | 不经过网关,对单个文件脱敏(文本/CSV/JSON/SQL/代码;docx/xlsx/pdf 保留格式;图片 OCR,需可选依赖,加 `--redact` 生成打码图) |
 | `python3 -m llm_sanitizer restore <文件> --map <map.json>` | 用映射文件还原已脱敏文件 |
 
 **看板**展示:累计脱敏数、按类别分布、最近脱敏事件(只含占位符,绝不展示明文)、最近请求记录。

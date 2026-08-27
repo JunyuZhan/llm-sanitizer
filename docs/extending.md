@@ -11,7 +11,8 @@ Four extension points, from easiest to most involved. [中文版](extending.zh-C
 | 1 | Custom rules (new sensitive categories) | Low | one regex + one test file |
 | 2 | Custom word lists (names, aliases, orgs) | Low | `wordlist.txt` / console (done) |
 | 3 | New agent / new protocol | Medium | adapter + registry entry (see below) |
-| 4 | New document format handler (docx/xlsx/pdf) | Medium | format handler module (v0.2) |
+| 4 | New document format handler (docx/xlsx/pdf done) | Medium | `formats.py` |
+| 5 | Image OCR engine (optional dep) | Low | implement `OcrEngine.detect()` in `ocr.py` |
 
 ## 1. Add a custom rule
 

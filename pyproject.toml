@@ -26,6 +26,13 @@ classifiers = [
 ]
 dependencies = []
 
+[project.optional-dependencies]
+# 图片 OCR 脱敏(可选特性,ADR-1 核心零依赖不受影响;另需系统级 tesseract + chi_sim 语言包)
+ocr = [
+    "pytesseract>=0.3.10",
+    "Pillow>=9.0",
+]
+
 [project.scripts]
 llm-sanitizer = "llm_sanitizer.cli:main"
 

@@ -96,6 +96,13 @@ def cmd_status(args):
     print(f"累计脱敏: {len(masked)} 项，请求: {len(reqs)} 次")
 
 
+def ocr_supports(path: str) -> bool:
+    """图片扩展名(png/jpg/…):走 OCR 脱敏分支。"""
+    from llm_sanitizer import ocr
+
+    return ocr.supports(path)
+
+
 def cmd_mask(args):
     from llm_sanitizer.formats import mask_file, supports
     from llm_sanitizer.masker import Masker, load_wordlist_file
@@ -113,6 +120,32 @@ def cmd_mask(args):
         if args.map:
             m.save(args.map)  # 原子写 + chmod 600(D7 修复)
         print(f"[ok] 已写入 {dest}(保留格式,改动 {changed} 个流/条目)")
+    elif ocr_supports(args.file):
+        # 图片(png/jpg/…):OCR 脱敏(可选依赖 [ocr])
+        from llm_sanitizer import ocr
+
+        if not ocr.engine_available():
+            print("[llm-sanitizer] 图片 OCR 脱敏是可选功能,当前未安装依赖:")
+            print(ocr.install_hint())
+            return 1
+        m = Masker() if masker is None else masker
+        try:
+            res = ocr.mask_image(
+                str(src), str(dest) if args.output else None, m,
+                redact=bool(getattr(args, "redact", False)),
+                lang=getattr(args, "ocr_lang", None),
+            )
+        except ocr.OcrError as e:
+            print(f"[llm-sanitizer] OCR 失败: {e}")
+            return 1
+        if args.map:
+            m.save(args.map)  # 原子写 + chmod 600(D7 修复)
+        mode = "打码图" if res["mode"] == "redact" else "脱敏文本"
+        print(f"[ok] 已写入 {res['dest']}(OCR {mode},改动 {res['changed']} 个文本块)")
+        for cat, n in sorted(m.counters.items()):
+            print(f"  {cat}: {n}")
+        if res["mode"] == "redact":
+            print("[llm-sanitizer] 提示:打码不可逆;文本报告模式(默认)可还原")
     else:
         text = src.read_text(encoding="utf-8")
         if masker is None:
@@ -138,6 +171,11 @@ def cmd_restore(args):
     if supports(args.file):
         changed = restore_file(str(src), str(dest), mapping)
         print(f"[ok] 已写入 {dest}(还原 {changed} 个流/条目)")
+    elif ocr_supports(args.file):
+        # 图片:打码不可逆;文本报告(.txt)请用文本分支还原
+        print("[llm-sanitizer] 图片打码(redact)不可逆还原;若你脱敏的是文本报告,")
+        print("  请对生成的 .txt 执行:llm-sanitizer restore masked_xx.txt --map ...")
+        return 1
     else:
         text = src.read_text(encoding="utf-8")
         out = restore_text(text, mapping)
@@ -250,6 +288,10 @@ def main():
     p_mask.add_argument("-o", "--output")
     p_mask.add_argument("--map")
     p_mask.add_argument("--wordlist", help="自定义敏感词表(每行一词,可 `词|类别`);默认读数据目录 wordlist.txt")
+    p_mask.add_argument("--redact", action="store_true",
+                        help="图片模式:敏感区域在原图上涂黑生成打码图(不可逆);默认输出脱敏文本报告")
+    p_mask.add_argument("--ocr-lang", default=None,
+                        help="OCR 语言(默认 chi_sim+eng);如 --ocr-lang eng")
     p_restore = sub.add_parser("restore", help="单文件还原")
     p_restore.add_argument("file")
     p_restore.add_argument("--map", required=True)

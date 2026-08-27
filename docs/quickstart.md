@@ -85,7 +85,7 @@ No events? Check the [troubleshooting](#7-troubleshooting) section.
 | `python3 -m llm_sanitizer status` | Show port status, upstream, and cumulative stats |
 | `python3 -m llm_sanitizer connect <agent>` | One-click integration (auto-backup, restorable; codex for now) |
 | `python3 -m llm_sanitizer disconnect <agent>` | Restore agent config from backup |
-| `python3 -m llm_sanitizer mask <file>` | Mask a single file without a gateway (text/CSV/JSON/SQL/code; docx/xlsx keep formatting) |
+| `python3 -m llm_sanitizer mask <file>` | Mask a single file without a gateway (text/CSV/JSON/SQL/code; docx/xlsx/pdf keep formatting; images via OCR, optional dep, `--redact` for a redacted image) |
 | `python3 -m llm_sanitizer restore <file> --map <map.json>` | Restore a masked file using its mapping |
 
 The **dashboard** shows: cumulative masked count, per-category distribution, recent mask events (placeholders only — never plaintext), and recent requests.

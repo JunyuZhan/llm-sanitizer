@@ -16,6 +16,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   not re-joined (context rules like names limited; format rules like phone/ID/email work),
   scanned PDFs (no text layer) unsupported. CLI mask/restore now handle .pdf.
 - Tests: +2 (PDF round-trip with /Length update, indirect-length skip) — 77 total.
+- **Image OCR masking** (`llm_sanitizer/ocr.py`, optional feature): engine abstraction with
+  lazy imports keeps ADR-1 core zero-dependency — `pip install llm-sanitizer-gateway[ocr]`
+  (pytesseract + Pillow) plus system tesseract (chi_sim for Chinese). Two modes: masked text
+  report (default, restorable, layout-preserving by bbox row grouping) and redacted image
+  (`--redact`, blacked-out boxes, irreversible). Core logic (`mask_blocks`/`render_text`/
+  `redact_image`) are engine-free pure functions. Also: `_NAME_CTX` now includes the role word
+  "姓名" — the highest-frequency OCR field (id-card "姓名 张三") was not being masked.
+- Tests: +9 (mask blocks, mapping reuse, row-group layout, redaction pixels, real-engine smoke
+  skipIf, CLI install hint, extension dispatch) — 86 total, all pass.
 
 ## [0.3.0] - 2026-08-27
 

@@ -60,6 +60,17 @@ CLI 脱敏(`mask`/`restore`)使用**独立**映射与计数器。CLI 产生的 `
 ### 网关会让 Agent 明显变慢吗?
 脱敏是文本字段上的正则 + 字典查找,对典型文档是毫秒级。流式多一层还原缓冲。不绕路——流量仍发给同一个上游。
 
+### 图片/扫描件里的文字能脱敏吗?
+**v0.4 起可以**(需可选依赖)。`llm-sanitizer mask 身份证.png` 会用 OCR 识别文字并脱敏:
+
+```bash
+pip install llm-sanitizer-gateway[ocr]   # 另需系统 tesseract + chi_sim 语言包
+llm-sanitizer mask 身份证.png            # 默认输出脱敏文本报告(可还原)
+llm-sanitizer mask 合同.jpg --redact     # 生成打码图(敏感区域涂黑,不可逆)
+```
+
+OCR 在本机运行,不产生新的出网流量。中文识别质量取决于 tesseract 语言包;打码不可逆,文本报告可还原。
+
 ### 支持 Windows 吗?
 **v0.3 起支持。** `pip install llm-sanitizer-gateway` 三平台通用;数据目录用 `%LOCALAPPDATA%\llm-sanitizer`(用户私有目录自带 ACL 隔离,替代 600 权限语义);开机自启用 `llm-sanitizer install`(schtasks 登录自启,免管理员)。
 
