@@ -18,6 +18,8 @@ class TestCLI(unittest.TestCase):
             [PY, "-m", "llm_sanitizer", *args],
             capture_output=True,
             text=True,
+            encoding="utf-8",   # child 已强制 UTF-8 输出(Windows 修复)
+            errors="replace",
             cwd=ROOT,
             env={**os.environ, **(env or {})},
         )

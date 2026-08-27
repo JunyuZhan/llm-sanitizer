@@ -226,6 +226,13 @@ def cmd_upgrade(args):
 
 
 def main():
+    if os.name == "nt":
+        # Windows 默认 stdout 编码 GBK,中文输出会 UnicodeEncodeError——强制 UTF-8
+        for stream in (sys.stdout, sys.stderr):
+            try:
+                stream.reconfigure(encoding="utf-8")
+            except Exception:
+                pass
     ap = argparse.ArgumentParser(description="LLM Sanitizer - 本地 AI 流量隐私网关")
     sub = ap.add_subparsers(dest="cmd")
     sub.add_parser("start", help="前台启动网关与看板")
