@@ -54,7 +54,7 @@ That's it. Two services come up:
 - Gateway: `http://127.0.0.1:8790/v1` — point your agent's `base_url` here
 - Dashboard: `http://127.0.0.1:8791` — open in a browser to watch masking in real time
 
-Requirements: **Python 3.9+**, macOS or Linux. (Windows support is planned for v0.2.)
+Requirements: **Python 3.9+** on macOS / Linux / **Windows (since v0.3)**.
 
 ## Quick start
 
@@ -116,7 +116,7 @@ Read [SECURITY.md](docs/SECURITY.md) before trusting this tool. **Core fact:** i
 | Version | Scope |
 |---|---|
 | **v0.1** (current) | HTTP gateway, Chinese rules, live dashboard, installer, docs, e2e tests; PyPI release |
-| **v0.2 (in progress)** | ✅ WebSocket proxy, ✅ custom word lists; next: docx/xlsx/pdf format-preserving masking, Windows, one-click integration (FR-12), drag-drop file masking (FR-14), desktop shell |
+| **v0.2 (released)** | ✅ WebSocket proxy, ✅ custom word lists, ✅ one-click integration (FR-12), ✅ all three protocols, ✅ docx/xlsx format masking |
 | **v0.3** | multilingual rules (EN/JP), organization policy & audit export, rule marketplace |
 
 ## Contributing

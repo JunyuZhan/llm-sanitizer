@@ -10,7 +10,15 @@ from pathlib import Path
 
 
 def data_dir() -> Path:
-    return Path(os.environ.get("LLM_SANITIZER_HOME", str(Path.home() / ".llm-sanitizer")))
+    """数据目录:LLM_SANITIZER_HOME 优先;Windows 用 %LOCALAPPDATA%\\llm-sanitizer
+    (用户私有目录自带 ACL 隔离,承担 map.json 600 权限的语义);其余 ~/.llm-sanitizer。"""
+    env = os.environ.get("LLM_SANITIZER_HOME")
+    if env:
+        return Path(env)
+    if os.name == "nt":
+        base = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
+        return Path(os.path.join(base, "llm-sanitizer"))
+    return Path.home() / ".llm-sanitizer"
 
 
 def map_path() -> Path:

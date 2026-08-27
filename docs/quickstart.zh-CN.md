@@ -121,6 +121,7 @@ pip install --upgrade llm-sanitizer-gateway
 
 ```bash
 ./install.sh --uninstall      # 或:llm-sanitizer install --uninstall
+# Windows:llm-sanitizer install / llm-sanitizer install --uninstall(schtasks 登录自启,免管理员)
 rm -rf ~/.llm-sanitizer       # 映射 + 事件——map.json 等同敏感数据,谨慎!
 ```
 

@@ -61,7 +61,7 @@ CLI 脱敏(`mask`/`restore`)使用**独立**映射与计数器。CLI 产生的 `
 脱敏是文本字段上的正则 + 字典查找,对典型文档是毫秒级。流式多一层还原缓冲。不绕路——流量仍发给同一个上游。
 
 ### 支持 Windows 吗?
-暂不支持。v0.2 计划支持(安装器 + 路径处理)。当前支持 macOS 与 Linux。
+**v0.3 起支持。** `pip install llm-sanitizer-gateway` 三平台通用;数据目录用 `%LOCALAPPDATA%\llm-sanitizer`(用户私有目录自带 ACL 隔离,替代 600 权限语义);开机自启用 `llm-sanitizer install`(schtasks 登录自启,免管理员)。
 
 ### 如何升级?
 `pip install --upgrade llm-sanitizer-gateway` 即可;装了开机自启的话再执行 `./install.sh --uninstall && ./install.sh` 重启服务。也可以直接运行 `llm-sanitizer upgrade` 查看最新版本与升级指引(`start` 启动时也会后台检查并提示)。升级不会丢失映射与统计——`map.json` 的 token 格式稳定,旧映射升级后仍可还原。

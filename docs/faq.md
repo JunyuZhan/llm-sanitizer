@@ -61,7 +61,7 @@ Pin the version you use, and diff/checksum your checkout against a release tag. 
 Masking is regex + dictionary lookups over text fields; for typical documents it's milliseconds per request. Streaming adds a small buffer for restore. No network detour — traffic goes to the same upstream you'd use anyway.
 
 ### Does it support Windows?
-Not yet. v0.2 plans Windows support (installer + path handling). macOS and Linux are supported now.
+**Yes, since v0.3.** `pip install llm-sanitizer-gateway` works on all three platforms. Data lives in `%LOCALAPPDATA%\llm-sanitizer` (user-private ACLs replace the 600-perm semantics); auto-start via `llm-sanitizer install` (schtasks ONLOGON, no admin).
 
 ### How do I upgrade?
 `pip install --upgrade llm-sanitizer-gateway` is all it takes; if auto-start is installed, also run `./install.sh --uninstall && ./install.sh` to restart the service. Or run `llm-sanitizer upgrade` to check the latest version and get instructions (`start` also checks in the background). Upgrades never lose mappings or stats — the `map.json` token format is stable, so old mappings still restore after upgrading.

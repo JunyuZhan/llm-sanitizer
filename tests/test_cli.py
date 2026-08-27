@@ -65,6 +65,8 @@ class TestCLI(unittest.TestCase):
             self.assertNotIn("张三丰", masked)
             self.assertIn("[手机号_1]", masked)
 
+    @unittest.skipIf(sys.platform == "win32",
+                     "Windows 自启由 CLI 的 schtasks 实现,不经过 bash install.sh")
     def test_installer_dry_run(self):
         """install.sh dry-run:macOS 生成的 plist 必须是合法 XML(非法会被 launchd 拒收)。"""
         with tempfile.TemporaryDirectory() as d:
@@ -94,6 +96,44 @@ class TestCLI(unittest.TestCase):
                 self.assertTrue(os.path.exists(unit), "systemd unit 未生成")
                 text = open(unit, encoding="utf-8").read()
                 self.assertIn("ExecStart=", text)
+
+    def test_windows_schtasks_args(self):
+        """v0.3:Windows 自启 schtasks 参数构造(纯函数,无副作用)。"""
+        from llm_sanitizer.cli import _windows_schtasks_args, _windows_schtasks_delete_args
+
+        args = _windows_schtasks_args()
+        self.assertEqual(args[0], "schtasks")
+        self.assertIn("/Create", args)
+        self.assertIn("/TN", args)
+        self.assertIn("llm-sanitizer", args)
+        self.assertIn("/SC", args)
+        self.assertIn("ONLOGON", args)
+        self.assertIn("start", args[args.index("/TR") + 1])
+        d = _windows_schtasks_delete_args()
+        self.assertIn("/Delete", d)
+        self.assertIn("/F", d)
+
+    def test_windows_data_dir(self):
+        """v0.3:Windows 数据目录走 %LOCALAPPDATA%\\llm-sanitizer(ACL 隔离替代 600 语义)。"""
+        from pathlib import PureWindowsPath
+        from unittest import mock
+
+        from llm_sanitizer import config as cfg
+
+        with mock.patch("os.name", "nt"):
+            with mock.patch.dict(os.environ, {
+                "LOCALAPPDATA": r"C:\Users\test\AppData\Local",
+                "LLM_SANITIZER_HOME": "",
+            }, clear=False):
+                d = cfg.data_dir()
+                self.assertEqual(
+                    PureWindowsPath(str(d)),
+                    PureWindowsPath(r"C:\Users\test\AppData\Local") / "llm-sanitizer")
+            # 环境变量仍最高优先级
+            with mock.patch.dict(os.environ, {
+                "LLM_SANITIZER_HOME": r"D:\custom",
+            }, clear=False):
+                self.assertEqual(str(cfg.data_dir()), r"D:\custom")
 
     def test_status_runs(self):
         r = self._run("status")

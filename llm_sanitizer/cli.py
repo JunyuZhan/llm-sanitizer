@@ -145,7 +145,35 @@ def cmd_restore(args):
         print(f"[ok] 已写入 {dest}")
 
 
+def _windows_schtasks_args():
+    """Windows 自启:schtasks 注册登录时运行(普通用户可建自己的任务,免管理员)。
+    参数生成抽成纯函数,便于测试且无副作用。"""
+    return [
+        "schtasks", "/Create", "/F", "/TN", "llm-sanitizer",
+        "/TR", f'"{sys.executable}" -m llm_sanitizer start',
+        "/SC", "ONLOGON", "/RL", "LIMITED",
+    ]
+
+
+def _windows_schtasks_delete_args():
+    return ["schtasks", "/Delete", "/F", "/TN", "llm-sanitizer"]
+
+
 def cmd_install(args):
+    if os.name == "nt":
+        # Windows:计划任务自启(免管理员);数据目录 %LOCALAPPDATA%\llm-sanitizer
+        if args.uninstall:
+            subprocess.run(_windows_schtasks_delete_args())
+            print("[llm-sanitizer] 已移除计划任务 llm-sanitizer")
+            print(f"[llm-sanitizer] 数据目录保留:{config.data_dir()}——如需彻底清理请手动删除")
+        else:
+            r = subprocess.run(_windows_schtasks_args(), capture_output=True, text=True)
+            if r.returncode == 0:
+                print("[llm-sanitizer] 已注册计划任务:登录自启(无需管理员权限)")
+            else:
+                print("[llm-sanitizer] 计划任务注册失败,请以管理员身份运行,或手动创建:")
+                print("  " + " ".join(_windows_schtasks_args()))
+        return
     script = Path(__file__).resolve().parent.parent / "install.sh"
     if not script.exists():
         print("[llm-sanitizer] install.sh 不随 pip 包分发;请从源码仓库获取:")

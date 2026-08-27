@@ -54,7 +54,7 @@ python3 -m llm_sanitizer start
 - 网关:`http://127.0.0.1:8790/v1` —— 把 Agent 的 base_url 指向这里
 - 看板:`http://127.0.0.1:8791` —— 浏览器打开,实时查看脱敏
 
-环境要求:**Python 3.9+**,macOS 或 Linux(Windows 支持列入 v0.2)。
+环境要求:**Python 3.9+**,macOS / Linux / **Windows(v0.3 起)**。
 
 ## 快速开始
 
@@ -116,7 +116,7 @@ python3 -m llm_sanitizer start
 | 版本 | 范围 |
 |---|---|
 | **v0.1**(当前) | HTTP 网关、中文规则、实时看板、安装脚本、文档、端到端测试;PyPI 发布 |
-| **v0.2(进行中)** | ✅ WebSocket 代理、✅ 自定义词表;待开发:docx/xlsx/pdf 保留格式脱敏、Windows 支持、一键接入(FR-12)、拖拽文件脱敏(FR-14)、桌面 App 轻包 |
+| **v0.2(已发布)** | ✅ WebSocket 代理、✅ 自定义词表、✅ 一键接入(FR-12)、✅ 三大协议适配、✅ docx/xlsx 格式脱敏 |
 | **v0.3** | 多语言规则(英文/日文)、组织策略与审计导出、规则贡献市场 |
 
 ## 贡献

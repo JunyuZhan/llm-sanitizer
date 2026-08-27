@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] — 0.3.0
+
+### Added
+
+- **Windows support**: data dir `%LOCALAPPDATA%\llm-sanitizer` (user-private ACLs replace
+  the 600-perm semantics; `LLM_SANITIZER_HOME` still wins), `llm-sanitizer install` dispatches
+  to schtasks ONLOGON (no admin) with pure-function arg builders, CI matrix + windows-latest
+  (9 jobs), pyproject Windows classifier, FAQ/README updated.
+- Tests: +2 (schtasks args, Windows data-dir logic) — 71 total.
+
 ## [0.2.0] - 2026-08-27
 
 ### Added

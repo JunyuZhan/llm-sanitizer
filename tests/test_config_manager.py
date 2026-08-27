@@ -18,7 +18,9 @@ class TestConfigManager(unittest.TestCase):
     def setUp(self):
         self.home = tempfile.mkdtemp(prefix="llmsan-cm-")
         self._old_home = os.environ.get("HOME")
+        self._old_profile = os.environ.get("USERPROFILE")
         os.environ["HOME"] = self.home
+        os.environ["USERPROFILE"] = self.home  # Windows 的 Path.home() 优先读它
         os.environ["LLM_SANITIZER_HOME"] = str(Path(self.home) / ".llm-sanitizer")
         self.codex = Path(self.home) / ".codex" / "config.toml"
         self.codex.parent.mkdir(parents=True)
@@ -26,10 +28,11 @@ class TestConfigManager(unittest.TestCase):
         self.codex.write_text(self.orig, encoding="utf-8")
 
     def tearDown(self):
-        if self._old_home is None:
-            os.environ.pop("HOME", None)
-        else:
-            os.environ["HOME"] = self._old_home
+        for k, v in (("HOME", self._old_home), ("USERPROFILE", self._old_profile)):
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
 
     def test_detect(self):
         agents = {a["id"]: a for a in cm.detect_agents()}
