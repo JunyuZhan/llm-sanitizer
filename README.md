@@ -12,7 +12,7 @@
 
 ## Project Status
 
-> **v0.1 released · v0.2 in progress.** Local gateway, 15 Chinese-sensitive-data categories, live console, CLI, auto-start installer and CI are all in place — `pip install llm-sanitizer-gateway` to get started. v0.2 has landed **WebSocket transparent proxy** and **custom word lists**; format-preserving masking, one-click integration and more are in progress. Contributions welcome.
+> **v0.2 released · v0.3 in progress (Windows).** Local gateway, 15 Chinese-sensitive-data categories, live console, CLI, auto-start installer and CI are all in place — `pip install llm-sanitizer-gateway` to get started. v0.2 landed **WebSocket proxy, custom word lists, one-click integration, all three protocols, docx/xlsx format masking**; v0.3 adds **Windows support**. Contributions welcome.
 
 ## Why
 
@@ -115,9 +115,9 @@ Read [SECURITY.md](docs/SECURITY.md) before trusting this tool. **Core fact:** i
 
 | Version | Scope |
 |---|---|
-| **v0.1** (current) | HTTP gateway, Chinese rules, live dashboard, installer, docs, e2e tests; PyPI release |
+| **v0.1** (released) | HTTP gateway, Chinese rules, live dashboard, installer, docs, e2e tests; PyPI release |
 | **v0.2 (released)** | ✅ WebSocket proxy, ✅ custom word lists, ✅ one-click integration (FR-12), ✅ all three protocols, ✅ docx/xlsx format masking |
-| **v0.3** | multilingual rules (EN/JP), organization policy & audit export, rule marketplace |
+| **v0.3 (in progress)** | ✅ **Windows** (LOCALAPPDATA data dir, schtasks auto-start, 3-OS CI); next: PDF format masking, image OCR masking, multilingual rules (EN/JP), organization policy & audit export, rule marketplace |
 
 ## Contributing
 

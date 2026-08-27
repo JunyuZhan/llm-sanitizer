@@ -587,6 +587,7 @@ class TestWebSocket(GatewayFixture):
 if __name__ == "__main__":
     import test_cli
     import test_config_manager
+    import test_events
     import test_formats
     import test_masker
 
@@ -596,6 +597,7 @@ if __name__ == "__main__":
     suite.addTests(loader.loadTestsFromModule(test_cli))
     suite.addTests(loader.loadTestsFromModule(test_config_manager))
     suite.addTests(loader.loadTestsFromModule(test_formats))
+    suite.addTests(loader.loadTestsFromModule(test_events))
     suite.addTests(loader.loadTestsFromModule(sys.modules[__name__]))
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     sys.exit(0 if result.wasSuccessful() else 1)

@@ -21,16 +21,19 @@ from . import config
 
 GATEWAY_BASE = "http://127.0.0.1:8790/v1"
 
-# Codex config.toml 追加片段(文本级,原内容保留;顶层键后置合法)
-CODEX_PROVIDER_BLOCK = """\
+# Codex config.toml 片段。
+# 注意 TOML 规范:根级键(model_provider)必须声明在任何 [table] 头之前——
+# 追加到文件末尾会落入最后一个表内,导致一键接入"显示成功、实际不生效"。
+# 因此 apply() 把根键插入首个 '[' 之前,provider 表追加到末尾。
+CODEX_MODEL_PROVIDER_TABLE = """\
 [model_providers.llm-sanitizer]
 name = "LLM Sanitizer"
 base_url = "http://127.0.0.1:8790/v1"
 env_key = "LLM_SANITIZER_KEY"
 wire_api = "responses"
-
-model_provider = "llm-sanitizer"
 """
+
+CODEX_ROOT_KEY = 'model_provider = "llm-sanitizer"\n'
 
 
 def _config_path(agent_id):
@@ -119,10 +122,17 @@ def apply(agent_id) -> dict:
     if "[model_providers.llm-sanitizer]" in text:
         return {"applied": True, "already": True, "backup": ""}
     bak = backup("codex")
-    new_text = text
-    if new_text and not new_text.endswith("\n"):
+    # 根键必须声明在任何 [table] 之前:插入第一个 '[' 之前(保留头部注释)
+    first_table = text.find("\n[")
+    if first_table == -1:
+        first_table = text.find("[")
+    if first_table >= 0:
+        new_text = text[:first_table] + "\n" + CODEX_ROOT_KEY + text[first_table:]
+    else:
+        new_text = text + ("\n" if text and not text.endswith("\n") else "") + CODEX_ROOT_KEY
+    if not new_text.endswith("\n"):
         new_text += "\n"
-    new_text += "\n" + CODEX_PROVIDER_BLOCK
+    new_text += "\n" + CODEX_MODEL_PROVIDER_TABLE
     src.write_text(new_text, encoding="utf-8")
     try:
         os.chmod(src, 0o600)

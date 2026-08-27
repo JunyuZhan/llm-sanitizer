@@ -108,14 +108,15 @@ PAGE = """<!DOCTYPE html>
       <li>追加以下配置片段并保存</li>
     </ol>
     <pre>export LLM_SANITIZER_KEY="你的上游API密钥"
-# ~/.codex/config.toml 追加:
+# ~/.codex/config.toml 追加(注意:model_provider 是根级键,
+# 必须放在文件最顶部、任何 [table] 之前):
+model_provider = "llm-sanitizer"
+
 [model_providers.llm-sanitizer]
 name = "LLM Sanitizer"
 base_url = "http://127.0.0.1:8790/v1"
 env_key = "LLM_SANITIZER_KEY"
-wire_api = "responses"
-
-model_provider = "llm-sanitizer"</pre>
+wire_api = "responses"</pre>
     <p style="font-size:13px;color:#475467">3. 重启 Codex,发送一条含测试隐私的消息(如"申请人张三,电话 13912345678"),回到本页确认下方事件区出现脱敏记录。</p>
   </div>
 
@@ -176,7 +177,7 @@ function refresh() {
     const bars = document.getElementById('bars');
     const max = Math.max(1, ...Object.values(d.by_category));
     bars.innerHTML = Object.entries(d.by_category).map(([k,v]) =>
-      '<div style="margin-bottom:8px;font-size:13px">' + k + ' <span style="float:right">' + v + '</span>' +
+      '<div style="margin-bottom:8px;font-size:13px">' + esc(k) + ' <span style="float:right">' + esc(v) + '</span>' +
       '<div class="bar"><i style="width:' + (v/max*100) + '%"></i></div></div>').join('');
     document.getElementById('tbody_events').innerHTML = d.events.map(e =>
       '<tr><td>' + esc(e.ts) + '</td><td><span class="tag">' + esc(e.category) + '</span></td>' +

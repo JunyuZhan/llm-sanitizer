@@ -163,8 +163,12 @@ def cmd_install(args):
     if os.name == "nt":
         # Windows:计划任务自启(免管理员);数据目录 %LOCALAPPDATA%\llm-sanitizer
         if args.uninstall:
-            subprocess.run(_windows_schtasks_delete_args())
-            print("[llm-sanitizer] 已移除计划任务 llm-sanitizer")
+            r = subprocess.run(_windows_schtasks_delete_args(), capture_output=True, text=True)
+            if r.returncode == 0:
+                print("[llm-sanitizer] 已移除计划任务 llm-sanitizer")
+            else:
+                print("[llm-sanitizer] 计划任务移除失败(可能未安装):")
+                print("  " + " ".join(_windows_schtasks_delete_args()))
             print(f"[llm-sanitizer] 数据目录保留:{config.data_dir()}——如需彻底清理请手动删除")
         else:
             r = subprocess.run(_windows_schtasks_args(), capture_output=True, text=True)
@@ -220,8 +224,12 @@ def cmd_upgrade(args):
         print(f"[llm-sanitizer] 当前已是最新版本({__version__})")
     print("[llm-sanitizer] 升级:")
     print("  pip install --upgrade llm-sanitizer-gateway")
-    print("[llm-sanitizer] 升级后重启开机自启服务:")
-    print("  ./install.sh --uninstall && ./install.sh")
+    if os.name == "nt":
+        print("[llm-sanitizer] 升级后重启开机自启服务:")
+        print("  llm-sanitizer install --uninstall && llm-sanitizer install")
+    else:
+        print("[llm-sanitizer] 升级后重启开机自启服务:")
+        print("  ./install.sh --uninstall && ./install.sh")
     print("[llm-sanitizer] 说明:升级不丢失映射/统计(map.json 格式稳定,ADR-2)")
 
 

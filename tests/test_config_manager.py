@@ -83,6 +83,22 @@ class TestConfigManager(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             cm.apply("codex")
 
+    def test_apply_toml_root_key(self):
+        """P1 回归:model_provider 必须是根级键,不能落在 provider 表内(tomllib 断言)。"""
+        cm.apply("codex")
+        try:
+            import tomllib
+        except ImportError:  # Python 3.9/3.10
+            self.skipTest("tomllib requires Python 3.11+")
+        with open(self.codex, "rb") as f:
+            data = tomllib.load(f)
+        # 根级选择键生效(Codex 官方文档:根键必须在 table 之前)
+        self.assertEqual(data.get("model_provider"), "llm-sanitizer")
+        # 表内不得包含该键(旧 bug 特征:根键落入 [model_providers.llm-sanitizer])
+        provider = data.get("model_providers", {}).get("llm-sanitizer", {})
+        self.assertNotIn("model_provider", provider)
+        self.assertEqual(provider.get("base_url"), "http://127.0.0.1:8790/v1")
+
     def test_apply_unsupported_agent(self):
         with self.assertRaises(ValueError):
             cm.apply("openclaw")

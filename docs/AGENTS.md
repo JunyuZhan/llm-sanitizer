@@ -23,13 +23,14 @@ python3 -m llm_sanitizer start
 编辑 `~/.codex/config.toml`(先备份):
 
 ```toml
+# 注意:model_provider 是根级键,必须放在文件最顶部、任何 [table] 之前
+model_provider = "llm-sanitizer"
+
 [model_providers.llm-sanitizer]
 name = "LLM Sanitizer"
 base_url = "http://127.0.0.1:8790/v1"
 env_key = "LLM_SANITIZER_KEY"
 wire_api = "responses"
-
-model_provider = "llm-sanitizer"
 ```
 
 启动 Codex 前导出上游密钥:`export LLM_SANITIZER_KEY="你的上游API密钥"`(网关会原样转发)。

@@ -14,6 +14,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to schtasks ONLOGON (no admin) with pure-function arg builders, CI matrix + windows-latest
   (9 jobs), pyproject Windows classifier, FAQ/README updated.
 - Tests: +2 (schtasks args, Windows data-dir logic) — 71 total.
+- **Audit fixes**: P1 `connect codex` TOML root key placement (model_provider was
+  landing inside the provider table — root keys must precede any `[table]`; now
+  inserted before the first `[`, with tomllib assertion); P2 README status/roadmap
+  aligned to v0.3, PRD header updated; P3 events.jsonl auto-rotation (5 MB → .1),
+  dashboard by_category HTML-escaped, WS proxy connects upstream before replying
+  101 (no dirty JSON on upstream failure), Windows uninstall checks schtasks rc,
+  upgrade hint platform-dispatched. Tests: +4 (toml root key, event rotation/
+  stats/tail) — 75 total, all pass.
+- Release checklist: verify `llm-sanitizer install`/`--uninstall` on a real
+  Windows host (schtasks /TR quoting) before shipping v0.3.0.
 
 ## [0.2.0] - 2026-08-27
 

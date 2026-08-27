@@ -165,7 +165,13 @@ def run_ws_proxy(client_sock, client_key, target, upstream_key,
     client_key:  客户端握手请求的 Sec-WebSocket-Key
     target:      上游完整 URL(forward_path 结果)
     mask_fn/restore_fn: 文本消息的脱敏/还原回调(业务注入,含事件记录)
+
+    顺序关键:先连接上游、成功后才回 101——上游不可达时连接仍处于
+    HTTP 语义,调用方可正常返回 JSON 错误(避免 101 后写脏数据)。
     """
+    up_sock, up_reader = connect_upstream(target, upstream_key)
+    log(f"ws proxy connected to {target}")
+
     resp = (
         "HTTP/1.1 101 Switching Protocols\r\n"
         "Upgrade: websocket\r\n"
@@ -176,8 +182,6 @@ def run_ws_proxy(client_sock, client_key, target, upstream_key,
     client_sock.sendall(resp.encode("latin-1"))
     client_reader = WsReader(client_sock)
 
-    up_sock, up_reader = connect_upstream(target, upstream_key)
-    log(f"ws proxy connected to {target}")
     stop = threading.Event()
 
     def _pump(reader, writer_sock, to_upstream, transform):

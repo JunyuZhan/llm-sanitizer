@@ -12,9 +12,10 @@ from collections import deque
 
 
 class EventStore:
-    def __init__(self, path, max_memory=500):
+    def __init__(self, path, max_memory=500, rotate_bytes=5 * 1024 * 1024):
         self.path = path
         self.max_memory = max_memory
+        self.rotate_bytes = rotate_bytes  # 事件文件超过该字节数时轮转(P3:防无限增长)
         self._events = deque(maxlen=max_memory)
         self._lock = threading.Lock()
         self._load()
@@ -30,6 +31,15 @@ class EventStore:
         except Exception:
             pass
 
+    def _rotate(self):
+        """把当前事件文件轮转为 events.jsonl.1(保留 1 份历史),再开新文件。"""
+        try:
+            if os.path.exists(self.path):
+                os.replace(self.path, self.path + ".1")
+            open(self.path, "a", encoding="utf-8").close()
+        except Exception:
+            pass
+
     def add(self, kind, **fields):
         ev = {"ts": time.strftime("%H:%M:%S"), "kind": kind}
         ev.update(fields)
@@ -38,6 +48,8 @@ class EventStore:
             try:
                 if self.path:
                     os.makedirs(os.path.dirname(self.path), exist_ok=True)
+                    if os.path.exists(self.path) and os.path.getsize(self.path) > self.rotate_bytes:
+                        self._rotate()
                     with open(self.path, "a", encoding="utf-8") as f:
                         f.write(json.dumps(ev, ensure_ascii=False) + "\n")
                     os.chmod(self.path, 0o600)  # 敏感文件统一 600(FR-8/D7)
